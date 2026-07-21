@@ -1,0 +1,6 @@
+{
+  "name": "零碳智能微网管理",
+  "description": "智能微网小程序策略运行报告，包含收益统计、AI策略光伏数据评估、光伏限电主动止损分析、储能充放电统计及权限控制功能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
