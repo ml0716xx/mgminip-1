@@ -79,7 +79,7 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
       {/* 2. WeChat Action Bar / Capsule Bar */}
       <div className="bg-white border-b border-gray-100/80 px-4 py-2.5 flex items-center justify-between z-30 select-none">
         {/* LeftDropdown resembling WeChat screenshot */}
-        <div className="flex items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 transition-all">
+        <div className="flex items-center gap-1 cursor-pointer active:opacity-85 active:scale-95 transition-all">
           <span className="text-[12px] font-bold text-gray-700">{shortStation}</span>
           <span className="text-[8px] text-gray-400">▼</span>
         </div>
@@ -91,12 +91,12 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
 
         {/* WeChat Capsule Button */}
         <div className="flex items-center gap-2 px-2.5 py-1 bg-white border border-gray-200/80 rounded-full shadow-xs select-none">
-          <button className="text-gray-900 hover:text-emerald-500 transition-colors">
+          <button className="text-gray-900 transition-colors">
             <MoreHorizontal className="w-3.5 h-3.5" />
           </button>
           <div className="w-[1px] h-3 bg-gray-200" />
-          <button className="text-gray-900 hover:text-red-500 transition-colors">
-            <Circle className="w-3.5 h-3.5 fill-gray-900 hover:fill-red-500 stroke-none" />
+          <button className="text-gray-900 transition-colors">
+            <Circle className="w-3.5 h-3.5 fill-gray-900 stroke-none" />
           </button>
         </div>
       </div>
@@ -122,7 +122,7 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
                 className={`p-1.5 rounded-full transition-all duration-300 relative ${
                   isActive
                     ? 'text-emerald-500 bg-emerald-50/50 scale-110'
-                    : 'text-gray-400 group-hover:text-gray-600'
+                    : 'text-gray-400'
                 }`}
               >
                 <IconComponent className="w-5 h-5" />

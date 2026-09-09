@@ -95,7 +95,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentVie
           <button
             onClick={onBack}
             id="btn_back_to_features"
-            className="flex items-center gap-1.5 text-gray-600 hover:text-emerald-600 transition-colors animate-none"
+            className="flex items-center gap-1.5 text-gray-600 transition-colors animate-none"
           >
             <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
             <span className="text-sm font-bold">返回</span>
@@ -111,7 +111,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentVie
             <button
               onClick={handlePrevMonth}
               disabled={!hasPrev}
-              className={`p-1 rounded-md transition-colors ${hasPrev ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-300 cursor-not-allowed'}`}
+              className={`p-1 rounded-md transition-colors ${hasPrev ? 'text-gray-600 bg-gray-100' : 'text-gray-300 cursor-not-allowed'}`}
               title="上个月"
             >
               <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
@@ -122,7 +122,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentVie
             <button
               onClick={handleNextMonth}
               disabled={!hasNext}
-              className={`p-1 rounded-md transition-colors ${hasNext ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-300 cursor-not-allowed'}`}
+              className={`p-1 rounded-md transition-colors ${hasNext ? 'text-gray-600 bg-gray-100' : 'text-gray-300 cursor-not-allowed'}`}
               title="下个月"
             >
               <ChevronRight className="w-4 h-4 stroke-[2.5]" />

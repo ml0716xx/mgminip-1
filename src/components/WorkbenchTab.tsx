@@ -113,7 +113,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
               className={`w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all flex items-center justify-between border ${
                 stationName === name
                   ? 'border-emerald-500 bg-emerald-50/40 font-bold text-emerald-700 shadow-xs'
-                  : 'border-gray-100 hover:bg-gray-50 text-gray-600 font-medium'
+                  : 'border-gray-100 bg-gray-50 text-gray-600 font-medium'
               }`}
             >
               <span>{name}</span>

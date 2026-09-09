@@ -146,7 +146,7 @@ export default function App() {
             </div>
             <button
               onClick={() => setToastMessage(null)}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-400"
             >
               <X className="w-3.5 h-3.5" />
             </button>

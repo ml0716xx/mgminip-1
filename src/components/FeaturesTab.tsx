@@ -51,7 +51,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 故障报警 */}
           <div
             id="btn_fault_alarm"
-            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs hover:border-orange-200 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-4 rounded-2xl border border-orange-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('fault_alarm')}
           >
             <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 text-white group-active:scale-95 transition-transform">
@@ -63,7 +63,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 事件报警 */}
           <div
             id="btn_event_alarm"
-            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs hover:border-amber-200 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-4 rounded-2xl border border-amber-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('event_alarm')}
           >
             <div className="w-12 h-12 bg-amber-400 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-400/20 text-white group-active:scale-95 transition-transform">
@@ -84,7 +84,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 策略运行 */}
           <div
             id="btn_strategy_run"
-            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs hover:border-cyan-200 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-4 rounded-2xl border border-cyan-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('strategy_run')}
           >
             <div className="w-12 h-12 bg-[#00bcd4] rounded-2xl flex items-center justify-center shadow-lg shadow-[#00bcd4]/20 text-white group-active:scale-95 transition-transform">
@@ -96,7 +96,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 策略运行报告 (NEWLY ADDED) */}
           <div
             id="btn_strategy_report"
-            className="bg-white p-4 rounded-2xl border-2 border-emerald-500/40 hover:border-emerald-500 shadow-md shadow-emerald-500/5 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-4 rounded-2xl border-2 border-emerald-500/60 shadow-md shadow-emerald-500/5 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('strategy_report')}
           >
             <div className="w-12 h-12 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white group-active:scale-95 transition-transform">
@@ -119,7 +119,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 排班管理 */}
           <div
             id="btn_schedule_manage"
-            className="bg-white p-3 rounded-2xl border border-gray-100 shadow-xs hover:border-emerald-200 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-3 rounded-2xl border border-emerald-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('schedule_manage')}
           >
             <div className="w-10 h-10 bg-[#26a69a] rounded-xl flex items-center justify-center shadow-lg shadow-[#26a69a]/20 text-white group-active:scale-95 transition-transform">
@@ -131,7 +131,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 经营报告 */}
           <div
             id="btn_business_report"
-            className="bg-white p-3 rounded-2xl border border-gray-100 shadow-xs hover:border-cyan-200 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-3 rounded-2xl border border-cyan-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('business_report')}
           >
             <div className="w-10 h-10 bg-[#00acc1] rounded-xl flex items-center justify-center shadow-lg shadow-[#00acc1]/20 text-white group-active:scale-95 transition-transform">
@@ -143,7 +143,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           {/* 运行模式 */}
           <div
             id="btn_operating_mode"
-            className="bg-white p-3 rounded-2xl border border-gray-100 shadow-xs hover:border-[#26c6da] transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-3 rounded-2xl border border-cyan-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('operating_mode')}
           >
             <div className="w-10 h-10 bg-[#26c6da] rounded-xl flex items-center justify-center shadow-lg shadow-[#26c6da]/20 text-white group-active:scale-95 transition-transform">

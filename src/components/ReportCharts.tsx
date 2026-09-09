@@ -13,7 +13,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ReferenceLine,
   LabelList,
 } from 'recharts';
@@ -92,7 +91,7 @@ const FullscreenChartModal: React.FC<{
     <div className="relative bg-white w-screen h-screen landscape:w-screen landscape:h-screen portrait:rotate-90 portrait:w-[100vh] portrait:h-[100vw] flex flex-col transition-all duration-300">
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-30 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all"
+        className="absolute top-4 right-4 z-30 p-2 bg-slate-200 text-slate-700 rounded-full transition-all"
       >
         <X className="w-5 h-5 stroke-[2.5]" />
       </button>
@@ -191,7 +190,7 @@ const SwipeChartCard: React.FC<ChartCardProps> = ({ accentClass, title, badge, l
       {onOpenFullscreen && (
         <button
           onClick={onOpenFullscreen}
-          className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1 shrink-0"
+          className="p-1.5 bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1 shrink-0"
           title="横屏全屏展示"
         >
           <Maximize2 className="w-3.5 h-3.5" />
@@ -280,39 +279,6 @@ export const RevenueComparisonChart: React.FC<ChartProps> = ({ report }) => {
               tick={{ fill: '#7F8C8D', fontSize: 9 }}
               tickFormatter={(val) => (val >= 1000 ? `${(val / 1000).toFixed(1)}k` : `${val}`)}
               width={34}
-            />
-            <Tooltip
-              cursor={{ fill: '#F4F6F9' }}
-              content={({ active, payload, label }: any) => {
-                if (!active || !payload || !payload.length) return null;
-                const d = payload[0].payload;
-                const diff = d.aiRevenue - d.simulatedRevenue;
-                const pct = d.simulatedRevenue > 0 ? ((diff / d.simulatedRevenue) * 100).toFixed(1) : '0.0';
-                return (
-                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[190px]">
-                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100 flex items-center justify-between">
-                      <span>{label} · 收益对比</span>
-                      {!d.hasAi && <span className="text-[8px] text-slate-400 font-bold">未运行AI</span>}
-                    </div>
-                    <div className="space-y-1.5 text-[10px]">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#3B82F6]" />模拟策略收益</span>
-                        <span className="font-bold text-slate-700">¥{d.simulatedRevenue.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />当日实际收益</span>
-                        <span className="font-bold text-emerald-600">¥{d.aiRevenue.toLocaleString()}</span>
-                      </div>
-                      {d.hasAi && (
-                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-emerald-50 p-1.5 rounded-lg">
-                          <span className="text-emerald-800 font-bold">实际提升:</span>
-                          <span className="font-black text-emerald-600">+¥{diff.toLocaleString()} (+{pct}%)</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              }}
             />
             <Bar dataKey="simulatedRevenue" name="模拟策略收益" fill="#3B82F6" fillOpacity={0.85} radius={[2, 2, 0, 0]} barSize={7} />
             <Bar dataKey="aiRevenue" name="当日实际收益" fill="#10B981" radius={[2, 2, 0, 0]} barSize={7} isAnimationActive={false}>
@@ -428,35 +394,6 @@ export const PvSelfConsumptionComparisonChart: React.FC<ChartProps> = ({ report 
               domain={[0, 110]}
               width={34}
             />
-            <Tooltip
-              cursor={{ fill: '#F4F6F9' }}
-              content={({ active, payload, label }: any) => {
-                if (!active || !payload || !payload.length) return null;
-                const d = payload[0].payload;
-                const diff = (d.aiPv - d.simulatedPv).toFixed(1);
-                return (
-                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[190px]">
-                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100">{label} · 光伏消纳对比</div>
-                    <div className="space-y-1.5 text-[10px]">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#F59E0B]" />模拟策略消纳率</span>
-                        <span className="font-bold text-slate-700">{d.simulatedPv}%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />当日实际消纳率</span>
-                        <span className="font-bold text-emerald-600">{d.aiPv}%</span>
-                      </div>
-                      {d.hasAi && (
-                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-emerald-50 p-1.5 rounded-lg">
-                          <span className="text-emerald-800 font-bold">消纳率提升:</span>
-                          <span className="font-black text-emerald-600">+{diff}%</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              }}
-            />
             <Bar dataKey="simulatedPv" name="模拟策略消纳率" fill="#F59E0B" fillOpacity={0.85} radius={[2, 2, 0, 0]} barSize={7} />
             <Bar dataKey="aiPv" name="当日实际消纳率" fill="#10B981" radius={[2, 2, 0, 0]} barSize={7} />
           </ComposedChart>
@@ -571,40 +508,6 @@ export const StorageComparisonChart: React.FC<ChartProps> = ({ report }) => {
               width={34}
             />
             <YAxis yAxisId="util" hide domain={[0, 100]} />
-            <Tooltip
-              cursor={{ fill: '#F4F6F9' }}
-              content={({ active, payload, label }: any) => {
-                if (!active || !payload || !payload.length) return null;
-                const d = payload[0].payload;
-                return (
-                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[210px]">
-                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100">{label} · 储能充放电</div>
-                    <div className="space-y-1.5 text-[10px]">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#FB923C]" />模拟放电 (基准)</span>
-                        <span className="font-bold text-slate-700">{d.simulatedDischarge} kWh</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />实际放电 (优化)</span>
-                        <span className="font-bold text-emerald-600">{d.aiDischarge} kWh</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#93C5FD]" />模拟充电 (基准)</span>
-                        <span className="font-bold text-slate-700">{Math.abs(d.simulatedCharge)} kWh</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#059669]" />实际充电 (优化)</span>
-                        <span className="font-bold text-blue-600">{Math.abs(d.aiCharge)} kWh</span>
-                      </div>
-                      <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-indigo-50/60 p-1.5 rounded-lg">
-                        <span className="text-indigo-800 font-bold">利用率 (基准→实际):</span>
-                        <span className="font-black text-indigo-600">{d.simulatedUtilRate}% → {d.aiUtilRate}%</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }}
-            />
             <Bar dataKey="simulatedDischarge" name="模拟放电" stackId="simulated" fill="#FB923C" fillOpacity={0.8} radius={[2, 2, 0, 0]} barSize={7} />
             <Bar dataKey="aiDischarge" name="实际放电" stackId="actual" fill="#10B981" radius={[2, 2, 0, 0]} barSize={7} />
             <Bar dataKey="simulatedCharge" name="模拟充电" stackId="simulated" fill="#93C5FD" fillOpacity={0.8} radius={[0, 0, 2, 2]} barSize={7} />
@@ -725,41 +628,6 @@ export const EssPriceSpreadChart: React.FC<ChartProps> = ({ report }) => {
               domain={[0, 1.2]}
               width={40}
             />
-            <Tooltip
-              cursor={{ fill: '#F4F6F9' }}
-              content={({ active, payload, label }: any) => {
-                if (!active || !payload || !payload.length) return null;
-                const d = payload[0].payload;
-                const diffSpread = (d.actualSpread - d.simulatedSpread).toFixed(3);
-                return (
-                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[210px]">
-                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100">{label} · 充放均价与套利</div>
-                    <div className="space-y-1.5 text-[10px]">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#F97316]" />当日放电价格</span>
-                        <span className="font-bold text-orange-500">¥{d.aiDischargePrice.toFixed(3)}/kWh</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>基准放电均价</span>
-                        <span className="font-semibold">¥{d.simulatedDischargePrice.toFixed(3)}/kWh</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />当日充电成本</span>
-                        <span className="font-bold text-emerald-600">¥{d.aiChargePrice.toFixed(3)}/kWh</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>基准充电成本</span>
-                        <span className="font-semibold">¥{d.simulatedChargePrice.toFixed(3)}/kWh</span>
-                      </div>
-                      <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-indigo-50/70 p-1.5 rounded-lg">
-                        <span className="text-indigo-950 font-bold">实际价差:</span>
-                        <span className="font-black text-indigo-500">¥{d.actualSpread.toFixed(3)} ({parseFloat(diffSpread) > 0 ? `+${diffSpread}` : '持平'})</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }}
-            />
             <Bar dataKey="actualSpread" name="充放价差" fill="#6366F1" fillOpacity={0.35} radius={[2, 2, 0, 0]} barSize={5} />
             <Line dataKey="simulatedChargePrice" stroke="#3B82F6" strokeWidth={1.2} strokeDasharray="4 3" dot={false} />
             <Line dataKey="aiChargePrice" stroke="#10B981" strokeWidth={1.5} dot={false} />
@@ -856,28 +724,6 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
             <XAxis dataKey="day" axisLine={{ stroke: '#EAEDF2' }} tickLine={false} interval={0} tick={{ fill: '#7F8C8D', fontSize: 8 }} />
             <YAxis yAxisId="energy" axisLine={{ stroke: '#EAEDF2' }} tickLine={false} tick={{ fill: '#7F8C8D', fontSize: 9 }} width={30} />
             <YAxis yAxisId="money" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#10B981', fontSize: 9 }} width={30} />
-            <Tooltip
-              cursor={{ fill: '#F4F6F9' }}
-              content={({ active, payload, label }: any) => {
-                if (!active || !payload || !payload.length) return null;
-                const d = payload[0].payload;
-                return (
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xl min-w-[160px] text-[10px]">
-                    <div className="font-black text-slate-800 pb-1 mb-1 border-b border-slate-100">{label} · 限电止损</div>
-                    <div className="flex justify-between py-0.5">
-                      <span className="text-slate-500">止损电量</span>
-                      <span className="font-bold text-rose-500">{d.curtailedEnergy} kWh</span>
-                    </div>
-                    <div className="flex justify-between py-0.5">
-                      <span className="text-slate-500">止损金额</span>
-                      <span className={`font-bold ${d.lossSaved >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {d.lossSaved >= 0 ? '+' : ''}¥{d.lossSaved}
-                      </span>
-                    </div>
-                  </div>
-                );
-              }}
-            />
             <Bar yAxisId="energy" dataKey="curtailedEnergy" name="止损电量" fill="#F43F5E" fillOpacity={0.75} radius={[2, 2, 0, 0]} barSize={9} />
             <Line yAxisId="money" dataKey="lossSaved" stroke="#10B981" strokeWidth={1.5} dot={{ r: 2, fill: '#10B981' }} />
           </ComposedChart>
