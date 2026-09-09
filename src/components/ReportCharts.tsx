@@ -698,6 +698,7 @@ export const EssPriceSpreadChart: React.FC<ChartProps> = ({ report }) => {
 
 // ==================== CHART 5: 光伏限电止损 ====================
 export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
+  const { selectedDay, handleChartClick } = useDaySelect();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const daily = report.dailyList;
 
@@ -714,12 +715,19 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
   const allCurtailDays = daily.filter((d) => d.curtailmentEnergy > 0);
   const totalCurtail = allCurtailDays.reduce((s, d) => s + d.curtailmentEnergy, 0).toFixed(1);
   const totalSaved = allCurtailDays.reduce((s, d) => s + d.stopLossRevenue, 0);
+  const sd = allCurtailDays.find((d) => d.day === selectedDay);
 
   const buildChart = (data: ReturnType<typeof buildData>, heightClass: string) => (
     <DragScrollArea minWidth={Math.max(320, data.length * 40)}>
       <div className={heightClass}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 14, right: 4, left: 0, bottom: 0 }} barGap={1} barCategoryGap="30%">
+          <ComposedChart
+            data={data}
+            margin={{ top: 14, right: 4, left: 0, bottom: 0 }}
+            barGap={1}
+            barCategoryGap="30%"
+            onClick={(state: any) => handleChartClick(state, data)}
+          >
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEDF2" />
             <XAxis dataKey="day" axisLine={{ stroke: '#EAEDF2' }} tickLine={false} interval={0} tick={{ fill: '#7F8C8D', fontSize: 8 }} />
             <YAxis yAxisId="energy" axisLine={{ stroke: '#EAEDF2' }} tickLine={false} tick={{ fill: '#7F8C8D', fontSize: 9 }} width={30} />
@@ -745,6 +753,26 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
         onOpenFullscreen={() => setIsFullscreen(true)}
       >
         {buildChart(buildData(daily), 'h-[200px]')}
+        {sd ? (
+          <DayDetailPanel
+            title={`${sd.day}日 · 限电止损`}
+            aiRunning={sd.isAiRunning}
+            rows={[
+              { label: '止损电量', value: `${sd.curtailmentEnergy} kWh`, strong: true, colorClass: 'text-rose-500' },
+              {
+                label: '止损金额',
+                value: `${sd.stopLossRevenue >= 0 ? '+' : ''}¥${sd.stopLossRevenue.toLocaleString()}`,
+                strong: true,
+                colorClass: sd.stopLossRevenue >= 0 ? 'text-emerald-600' : 'text-red-500',
+              },
+              { label: '光伏自发自用', value: `${sd.pvSelfConsumption} kWh` },
+              { label: '光伏上网电量', value: `${sd.pvGridFeeding} kWh` },
+              { label: '储能充电消纳', value: `${sd.chargeEnergy} kWh` },
+            ]}
+          />
+        ) : (
+          <SelectHint />
+        )}
       </SwipeChartCard>
       {isFullscreen && (
         <FullscreenChartModal title="微电网限电调控减亏 (全月)" subtitle={`止损电量合计 ${totalCurtail} kWh · 止损金额合计 +¥${totalSaved.toLocaleString()} · 按住拖动查看全月`} onClose={() => setIsFullscreen(false)}>
