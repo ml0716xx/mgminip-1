@@ -11,6 +11,7 @@ import { FeaturesTab } from './components/FeaturesTab';
 import { MessagesTab } from './components/MessagesTab';
 import { WorkbenchTab } from './components/WorkbenchTab';
 import { ReportPage } from './components/ReportPage';
+import { ModePage } from './components/ModePage';
 import { motion, AnimatePresence } from 'motion/react';
 import { Info, Sparkles, X } from 'lucide-react';
 
@@ -20,12 +21,15 @@ export default function App() {
   const [stationName, setStationName] = useState<string>('常州好迪机械有限公司');
   const [phoneMode, setPhoneMode] = useState<boolean>(true); // Elegant mobile simulation default
   const [activeReportScreen, setActiveReportScreen] = useState<boolean>(false);
+  const [activeModeScreen, setActiveModeScreen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Handle Menu Clicking
   const handleSelectFeature = (featureId: string) => {
     if (featureId === 'strategy_report') {
       setActiveReportScreen(true);
+    } else if (featureId === 'operating_mode') {
+      setActiveModeScreen(true);
     } else {
       // Elegant micro toast notification for unimplemented features
       const names: Record<string, string> = {
@@ -34,7 +38,6 @@ export default function App() {
         strategy_run: '实时策略调控',
         schedule_manage: '值班排班配置',
         business_report: '月度经营报告',
-        operating_mode: '微电网运行模式',
       };
       setToastMessage(`「${names[featureId] || '该功能'}」正在紧密研发中，敬请期待！`);
       setTimeout(() => {
@@ -82,7 +85,27 @@ export default function App() {
       {/* Main Orcherstrating Container */}
       <div className="relative z-10 w-full flex items-center justify-center">
         <AnimatePresence mode="wait">
-          {!activeReportScreen ? (
+          {activeModeScreen ? (
+            // Full Screen Mode Management page (same phone-shell treatment as report)
+            <motion.div
+              key="mode"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 50 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 240 }}
+              className={phoneMode ? 'relative mx-auto w-[395px] h-[820px] bg-slate-900 rounded-[50px] p-3.5 shadow-2xl border-4 border-slate-800 shrink-0' : 'w-full max-w-[420px] h-[780px] bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100'}
+            >
+              {phoneMode ? (
+                <div className="w-full h-full bg-white rounded-[38px] overflow-hidden relative shadow-inner border border-slate-950 flex flex-col pt-5">
+                  <ModePage onBack={() => setActiveModeScreen(false)} />
+                </div>
+              ) : (
+                <div className="w-full h-full bg-white flex flex-col">
+                  <ModePage onBack={() => setActiveModeScreen(false)} />
+                </div>
+              )}
+            </motion.div>
+          ) : !activeReportScreen ? (
             // Tab Screen with WeChat Bezel shell
             <motion.div
               key="shell"
