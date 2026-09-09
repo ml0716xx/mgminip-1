@@ -47,29 +47,3 @@ export interface MonthReport {
 }
 
 export type ActiveTab = 'overview' | 'features' | 'messages' | 'workbench';
-
-export type SelectedStrategy = 'mean_adaptive' | 'regular_schedule' | 'no_battery';
-
-export interface StrategyInfo {
-  id: SelectedStrategy;
-  name: string;
-  description: string;
-}
-
-export const STRATEGIES: StrategyInfo[] = [
-  {
-    id: 'mean_adaptive',
-    name: '均值自适应策略',
-    description: '根据历史均值自适应调整充放电阀值及最大需量。',
-  },
-  {
-    id: 'regular_schedule',
-    name: '时段常规调度策略',
-    description: '采用固定峰谷电价时段进行粗放式充放电调度。',
-  },
-  {
-    id: 'no_battery',
-    name: '无储能对照策略',
-    description: '最基础运行基线，不启用储能，纯依靠网侧平衡。',
-  },
-];

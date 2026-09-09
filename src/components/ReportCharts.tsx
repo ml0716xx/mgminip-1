@@ -3,1080 +3,920 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { MonthReport, DailyData } from '../types';
-import { 
-  TrendingUp, 
-  Sun, 
-  Battery, 
-  Maximize2, 
-  X, 
-  Info,
-  Calendar,
-  Zap,
-  LineChart
-} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  LabelList,
+} from 'recharts';
+import { motion } from 'motion/react';
+import { Maximize2, X } from 'lucide-react';
 
 interface ChartProps {
   report: MonthReport;
 }
 
-// Global hook or state for fullscreen is managed locally in each chart or in a shared overlay
-// Let's implement an elegant landscape/fullscreen modal inside each component for modularity!
+// 拖拽刚结束的时间戳（用于抑制拖拽后的误触发点击）
+let lastDragEndAt = 0;
 
-// ==================== COMMON TOOLTIP STATE & RENDER ====================
-interface TooltipData {
-  day: number;
-  isAiRunning: boolean;
+// 每天占用的横向宽度（px），决定拖动总宽度与首屏可见天数（约 10~12 天）
+const DAY_WIDTH = 32;
+
+// ==================== 通用：可拖拽横向滚动区（鼠标按住拖动 / 触摸原生滑动） ====================
+const DragScrollArea: React.FC<{ minWidth: number; children: React.ReactNode }> = ({ minWidth, children }) => {
+  const elRef = useRef<HTMLDivElement>(null);
+  const drag = useRef({ down: false, sx: 0, sl: 0, moved: 0 });
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // 触摸设备走原生横向滚动，只处理鼠标左键拖拽
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    drag.current = { down: true, sx: e.clientX, sl: elRef.current?.scrollLeft ?? 0, moved: 0 };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current.down || !elRef.current) return;
+    const dx = e.clientX - drag.current.sx;
+    drag.current.moved = Math.abs(dx);
+    elRef.current.scrollLeft = drag.current.sl - dx;
+  };
+  const onPointerUp = () => {
+    if (drag.current.down && drag.current.moved > 6) lastDragEndAt = Date.now();
+    drag.current.down = false;
+  };
+
+  return (
+    <div
+      ref={elRef}
+      className="overflow-x-auto scrollbar-none -ml-2 cursor-grab active:cursor-grabbing select-none"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+    >
+      <div style={{ minWidth: `${minWidth}px` }} className="h-full">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// ==================== 通用：X 轴刻度（AI 日绿色标记） ====================
+const DayTick = (props: any) => {
+  const { x, y, payload, hasAi } = props;
+  const dayNum = parseInt(payload.value);
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={12} textAnchor="middle" fill={hasAi ? '#10B981' : '#94a3b8'} fontSize={8} fontWeight={hasAi ? 700 : 500}>
+        {dayNum}
+      </text>
+      {hasAi && <circle cx={0} cy={17} r={1.2} fill="#10B981" />}
+    </g>
+  );
+};
+
+// ==================== 通用：横屏全屏容器 ====================
+const FullscreenChartModal: React.FC<{
   title: string;
-  metrics: { label: string; value: string; colorClass: string }[];
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ title, subtitle, onClose, children }) => (
+  <div className="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center">
+    <div className="relative bg-white w-screen h-screen landscape:w-screen landscape:h-screen portrait:rotate-90 portrait:w-[100vh] portrait:h-[100vw] flex flex-col transition-all duration-300">
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-30 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all"
+      >
+        <X className="w-5 h-5 stroke-[2.5]" />
+      </button>
+      <div className="px-6 pt-5 pb-2 flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-2.5 h-5 bg-emerald-500 rounded-xs" />
+          <h3 className="text-base font-black text-slate-900">{title}</h3>
+        </div>
+        {subtitle && <p className="text-[10px] text-slate-400 font-bold mb-2">{subtitle}</p>}
+        <div className="flex-1 min-h-0 flex flex-col">{children}</div>
+      </div>
+    </div>
+  </div>
+);
+
+// ==================== 通用：页内详情面板（非弹窗，原地展开） ====================
+const DayDetailPanel: React.FC<{
+  title: string;
+  aiRunning?: boolean;
+  rows: { label: string; value: React.ReactNode; strong?: boolean; colorClass?: string }[];
+}> = ({ title, aiRunning, rows }) => (
+  <motion.div
+    initial={{ opacity: 0, height: 0 }}
+    animate={{ opacity: 1, height: 'auto' }}
+    exit={{ opacity: 0, height: 0 }}
+    transition={{ duration: 0.2 }}
+    className="overflow-hidden"
+  >
+    <div className="mt-2 bg-slate-50 rounded-xl border border-slate-100 p-3">
+      <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200/70">
+        <span className="text-[10px] font-black text-slate-700">{title} · 当日详情</span>
+        {aiRunning !== undefined && (
+          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${aiRunning ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}>
+            {aiRunning ? 'AI 运行' : 'AI 未运行'}
+          </span>
+        )}
+      </div>
+      <div className="space-y-1">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center justify-between text-[10px]">
+            <span className="text-slate-500 font-bold">{r.label}</span>
+            <span className={`font-mono ${r.strong ? 'font-black' : 'font-bold'} ${r.colorClass || 'text-slate-700'}`}>{r.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </motion.div>
+);
+
+// ==================== 通用：图表卡片（拖动滑动 + 横屏放大） ====================
+interface ChartCardProps {
+  accentClass: string;
+  title: string;
+  badge: string;
+  legends: { color: string; label: string; dashed?: boolean }[];
+  onOpenFullscreen?: () => void;
+  children: React.ReactNode;
 }
 
-// ==================== CHART 1: REVENUE COMPARISON ====================
-export const RevenueComparisonChart: React.FC<ChartProps> = ({ report }) => {
-  const [activeDay, setActiveDay] = useState<number | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  const dailyList = report.dailyList;
-  const maxRevenue = 6000; // Peak daily revenue limit for scaling
-
-  const handleDaySelect = (day: number) => {
-    setActiveDay(activeDay === day ? null : day);
-  };
-
-  const selectedDayData = dailyList.find(d => d.day === activeDay);
-
-  const renderChartContent = (isModal: boolean) => {
-    // Width can expand in modal to show all days comfortably
-    const minWidth = isModal ? "w-[1200px]" : "w-[960px]";
-    
-    return (
-      <div className="flex h-[240px] relative overflow-hidden bg-white rounded-xl">
-        {/* Sticky Left Y-Axis */}
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-white/95 backdrop-blur-xs z-20 flex flex-col justify-between py-6 border-r border-slate-100 text-[8px] text-slate-400 font-mono pl-1">
-          <span>¥6,000</span>
-          <span>¥4,500</span>
-          <span>¥3,000</span>
-          <span>¥1,500</span>
-          <span>¥0</span>
-        </div>
-
-        {/* Scrollable Bars Area */}
-        <div className="flex-1 overflow-x-auto pl-12 scrollbar-none">
-          <div className={`relative h-full ${minWidth} flex items-end justify-between px-2 pb-6 pt-4`}>
-            {/* Grid background lines */}
-            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none z-0">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-full border-b border-dashed border-slate-100" />
-              ))}
-            </div>
-
-            {/* Daily Bars */}
-            {dailyList.map((dayData) => {
-              const { day, aiRevenue, compRevenue, isAiRunning } = dayData;
-              
-              // Scale heights
-              const baseHeight = Math.min(100, (compRevenue / maxRevenue) * 100);
-              const aiExtra = isAiRunning ? Math.max(0, aiRevenue - compRevenue) : 0;
-              const aiExtraHeight = Math.min(100 - baseHeight, (aiExtra / maxRevenue) * 100);
-
-              const isSelected = activeDay === day;
-
-              return (
-                <div 
-                  key={day} 
-                  onClick={() => handleDaySelect(day)}
-                  className="flex flex-col items-center flex-1 cursor-pointer group z-10 relative px-0.5"
-                >
-                  {/* Stacking Bar */}
-                  <div className="w-4 sm:w-5 h-[140px] flex flex-col justify-end relative rounded-t-xs overflow-hidden transition-all duration-300">
-                    {isAiRunning ? (
-                      <>
-                        {/* AI Extra (Green) */}
-                        <div 
-                          style={{ height: `${aiExtraHeight}%` }} 
-                          className={`w-full bg-emerald-500 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                          title={`AI提升: ¥${aiExtra}`}
-                        />
-                        {/* Base (Blue) */}
-                        <div 
-                          style={{ height: `${baseHeight}%` }} 
-                          className={`w-full bg-blue-500 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                          title={`基础收益: ¥${compRevenue}`}
-                        />
-                      </>
-                    ) : (
-                      /* AI Not Active (Gray) */
-                      <div 
-                        style={{ height: `${baseHeight}%` }} 
-                        className={`w-full bg-slate-300 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
-                        title={`未启用AI: ¥${compRevenue}`}
-                      />
-                    )}
-
-                    {/* Selection Glow Indicator */}
-                    {isSelected && (
-                      <div className="absolute inset-0 border-2 border-slate-900 rounded-t-xs pointer-events-none animate-pulse" />
-                    )}
-                  </div>
-
-                  {/* Day Label */}
-                  <span className={`text-[8px] mt-1 font-extrabold font-mono transition-all flex items-center justify-center w-4 h-4 rounded-full ${
-                    isSelected 
-                      ? 'bg-slate-900 text-white scale-110 font-black shadow-xs' 
-                      : isAiRunning 
-                        ? 'bg-emerald-500 text-white font-black' 
-                        : 'bg-slate-100 text-slate-400 font-bold'
-                  }`}>
-                    {day}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+const SwipeChartCard: React.FC<ChartCardProps> = ({ accentClass, title, badge, legends, onOpenFullscreen, children }) => (
+  <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs">
+    {/* Header */}
+    <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className={`w-2.5 h-4 ${accentClass} rounded-xs shrink-0`} />
+        <h3 className="text-xs font-black text-slate-800 tracking-tight truncate">{title}</h3>
       </div>
-    );
-  };
+      <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-slate-50 text-slate-500 border border-slate-100 rounded-full shrink-0">
+        {badge}
+      </span>
+    </div>
 
-  return (
-    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs relative">
-      {/* Chart Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-4 bg-emerald-500 rounded-xs" />
-          <h3 className="text-xs font-black text-slate-800 tracking-tight">每日运行收益对比</h3>
+    {/* Legends */}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] text-slate-500 font-bold mb-2 border-b border-slate-50 pb-2">
+      {legends.map((l, i) => (
+        <div key={i} className="flex items-center gap-1">
+          {l.dashed ? (
+            <span className="w-3 h-0 border-t-2 border-dashed" style={{ borderColor: l.color }} />
+          ) : (
+            <span className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: l.color }} />
+          )}
+          <span>{l.label}</span>
         </div>
-        <button 
-          onClick={() => setIsFullscreen(true)}
-          className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1"
+      ))}
+    </div>
+
+    {/* 图表内容（可拖拽横向滑动） */}
+    {children}
+
+    {/* 底部控制条 */}
+    <div className="mt-2.5 pt-2 border-t border-slate-50 flex items-center justify-between">
+      <span className="text-[9px] text-slate-400 font-bold flex items-center gap-1">
+        <span>🖱️</span>
+        <span>按住图表左右拖动查看全月 · 点击柱形锁定当日详情</span>
+      </span>
+      {onOpenFullscreen && (
+        <button
+          onClick={onOpenFullscreen}
+          className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1 shrink-0"
           title="横屏全屏展示"
         >
           <Maximize2 className="w-3.5 h-3.5" />
-          <span className="text-[10px] font-bold hidden sm:inline">横屏模式</span>
+          <span className="text-[10px] font-bold">横屏</span>
         </button>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-[9px] text-slate-500 font-bold mb-3 border-b border-slate-50 pb-2">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-blue-500 rounded-xs" />
-          <span>基础策略收益</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-xs animate-pulse" />
-          <span>AI 提升收益</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-slate-300 rounded-xs" />
-          <span>实际收益 (未托管)</span>
-        </div>
-      </div>
-
-
-
-      {/* Embedded Swipable Chart */}
-      {renderChartContent(false)}
-
-      {/* Dedicated Interactive Tooltip Banner */}
-      <div className="mt-2.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 min-h-[48px] flex items-center">
-        {selectedDayData ? (
-          <div className="flex items-center gap-2 sm:gap-3 text-[10px] flex-wrap w-full">
-            <div className="flex items-center gap-2 sm:gap-3 font-mono flex-wrap">
-              <span>基础: <strong className="text-slate-800">¥{selectedDayData.compRevenue}</strong></span>
-              {selectedDayData.isAiRunning ? (
-                <>
-                  <span>AI: <strong className="text-emerald-600">¥{selectedDayData.aiRevenue}</strong></span>
-                  <span className="text-emerald-500 font-black bg-emerald-50 px-1 py-0.5 rounded-xs shrink-0">
-                    提升: +¥{selectedDayData.aiRevenue - selectedDayData.compRevenue}
-                  </span>
-                </>
-              ) : (
-                <span className="text-slate-400">无提升</span>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 justify-center w-full">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 animate-pulse shrink-0" />
-            <span>点按上方柱形图即可锁定显示每日精准收益</span>
-          </div>
-        )}
-      </div>
-
-      {/* ==================== LANDSCAPE FULLSCREEN MODAL OVERLAY ==================== */}
-      {isFullscreen && (
-        <div className="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center">
-          <div className="bg-white w-full h-full shadow-2xl flex flex-col relative portrait:rotate-90 portrait:w-[100vh] portrait:h-[100vw] portrait:rounded-none landscape:w-screen landscape:h-screen landscape:rounded-none transition-all duration-300">
-            {/* Close Button */}
-            <button 
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-4 right-4 z-30 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all"
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
-
-            {/* Modal Content */}
-            <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between overflow-hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-3 h-5 bg-emerald-500 rounded-xs" />
-                  <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    {report.month} 运行策略收益每日细节对照表 (完整展开)
-                  </h3>
-                </div>
-                <p className="text-[10px] text-slate-400 font-bold mb-2">
-                  蓝色代表基础常规策略的日常收益基准，绿色代表AI策略优化后的精细套利额外增量。
-                </p>
-              </div>
-
-              {/* Expanded Chart */}
-              <div className="flex-1 flex flex-col justify-center my-2 overflow-y-auto">
-                {renderChartContent(true)}
-              </div>
-
-              {/* Bottom Details Row */}
-              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center min-h-[44px]">
-                {selectedDayData ? (
-                  <div className="flex items-center gap-2 sm:gap-3 text-xs flex-wrap w-full">
-                    <span className="bg-slate-900 text-white font-extrabold px-1.5 py-0.5 rounded-md font-mono text-[10px] shrink-0 leading-none">
-                      {selectedDayData.day}日
-                    </span>
-                    <div className="flex items-center gap-2 sm:gap-4 font-mono flex-wrap text-slate-600 font-bold">
-                      <span>基础: <strong className="text-slate-800 font-black">¥{selectedDayData.compRevenue}</strong></span>
-                      {selectedDayData.isAiRunning ? (
-                        <>
-                          <span>AI: <strong className="text-emerald-600 font-black">¥{selectedDayData.aiRevenue}</strong></span>
-                          <span className="text-emerald-500 font-black bg-emerald-50 px-1 py-0.5 rounded-xs shrink-0 text-[10px]">
-                            提升: +¥{selectedDayData.aiRevenue - selectedDayData.compRevenue}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-slate-400 font-medium">常规模拟期</span>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between w-full text-xs font-bold text-slate-600 flex-wrap gap-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-slate-900 font-black">运行摘要:</span>
-                      <span>总AI收益: <strong className="text-slate-900">¥{report.summary.aiTotalRevenue.toLocaleString()}</strong></span>
-                      <span>净提升: <strong className="text-emerald-600 font-black">+¥{report.summary.aiImprovementRevenue.toLocaleString()}</strong></span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      提示：点击上方柱形图即可查看每日比对细节
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
+  </div>
+);
+
+// 未选中日的提示条
+const SelectHint = () => (
+  <div className="mt-2 flex items-center justify-center gap-1 text-[9px] text-slate-400 font-bold">
+    <span>👆</span>
+    <span>点击柱形锁定当日详情 · 再次点击取消</span>
+  </div>
+);
+
+// 差值标签（AI 日柱顶 +差值）
+const DiffLabel = (props: any) => {
+  const { x, y, width, value, index, data } = props;
+  if (!value || value <= 0) return null;
+  const hasAi = data && data[index] && data[index].hasAi;
+  if (!hasAi) return null;
+  return (
+    <text x={x + width / 2} y={y - 4} textAnchor="middle" fill="#059669" fontSize={7} fontWeight={800}>
+      +{value}
+    </text>
   );
 };
 
+// 图表点击选中某天（toggle；拖拽后的抬起点不触发）
+const useDaySelect = () => {
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const handleChartClick = (state: any, data: { day: string }[]) => {
+    if (Date.now() - lastDragEndAt < 150) return; // 刚拖拽完，忽略误触点击
+    let dayStr: string | undefined = state?.activeLabel;
+    if (!dayStr && typeof state?.activeTooltipIndex === 'number' && data) {
+      dayStr = data[state.activeTooltipIndex]?.day;
+    }
+    if (!dayStr) return;
+    const n = parseInt(dayStr);
+    setSelectedDay((prev) => (prev === n ? null : n));
+  };
+  return { selectedDay, handleChartClick };
+};
 
-// ==================== CHART 2: SOLAR ABSORPTION COMPARISON ====================
+// ==================== CHART 1: 日收益对比 ====================
+export const RevenueComparisonChart: React.FC<ChartProps> = ({ report }) => {
+  const { selectedDay, handleChartClick } = useDaySelect();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const daily = report.dailyList;
+
+  const buildData = (days: DailyData[]) =>
+    days.map((d) => ({
+      day: `${d.day}日`,
+      hasAi: d.isAiRunning,
+      simulatedRevenue: d.compRevenue,
+      aiRevenue: d.aiRevenue,
+    }));
+
+  const sd = daily.find((d) => d.day === selectedDay);
+
+  const buildChart = (data: ReturnType<typeof buildData>, heightClass: string) => (
+    <DragScrollArea minWidth={Math.max(320, data.length * DAY_WIDTH)}>
+      <div className={heightClass}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={data}
+            margin={{ top: 14, right: 4, left: 0, bottom: 0 }}
+            barGap={1}
+            barCategoryGap="28%"
+            onClick={(state: any) => handleChartClick(state, data)}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEDF2" />
+            <XAxis
+              dataKey="day"
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              interval={0}
+              tick={(props: any) => <DayTick {...props} hasAi={data[(props as any).index]?.hasAi} />}
+            />
+            <YAxis
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              tick={{ fill: '#7F8C8D', fontSize: 9 }}
+              tickFormatter={(val) => (val >= 1000 ? `${(val / 1000).toFixed(1)}k` : `${val}`)}
+              width={34}
+            />
+            <Tooltip
+              cursor={{ fill: '#F4F6F9' }}
+              content={({ active, payload, label }: any) => {
+                if (!active || !payload || !payload.length) return null;
+                const d = payload[0].payload;
+                const diff = d.aiRevenue - d.simulatedRevenue;
+                const pct = d.simulatedRevenue > 0 ? ((diff / d.simulatedRevenue) * 100).toFixed(1) : '0.0';
+                return (
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[190px]">
+                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100 flex items-center justify-between">
+                      <span>{label} · 收益对比</span>
+                      {!d.hasAi && <span className="text-[8px] text-slate-400 font-bold">未运行AI</span>}
+                    </div>
+                    <div className="space-y-1.5 text-[10px]">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#3B82F6]" />模拟策略收益</span>
+                        <span className="font-bold text-slate-700">¥{d.simulatedRevenue.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />当日实际收益</span>
+                        <span className="font-bold text-emerald-600">¥{d.aiRevenue.toLocaleString()}</span>
+                      </div>
+                      {d.hasAi && (
+                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-emerald-50 p-1.5 rounded-lg">
+                          <span className="text-emerald-800 font-bold">实际提升:</span>
+                          <span className="font-black text-emerald-600">+¥{diff.toLocaleString()} (+{pct}%)</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            <Bar dataKey="simulatedRevenue" name="模拟策略收益" fill="#3B82F6" fillOpacity={0.85} radius={[2, 2, 0, 0]} barSize={7} />
+            <Bar dataKey="aiRevenue" name="当日实际收益" fill="#10B981" radius={[2, 2, 0, 0]} barSize={7} isAnimationActive={false}>
+              <LabelList content={<DiffLabel data={data} />} />
+            </Bar>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </DragScrollArea>
+  );
+
+  const buildBody = (days: DailyData[], fullscreen = false) => {
+    const data = buildData(days);
+    return (
+      <>
+        {buildChart(data, fullscreen ? 'h-full' : 'h-[220px]')}
+        {sd ? (
+          <DayDetailPanel
+            title={`${sd.day}日 · 收益`}
+            aiRunning={sd.isAiRunning}
+            rows={[
+              { label: '模拟策略收益 (基准)', value: `¥${sd.compRevenue.toLocaleString()}` },
+              { label: '当日实际收益', value: `¥${sd.aiRevenue.toLocaleString()}`, strong: true, colorClass: 'text-emerald-600' },
+              ...(sd.isAiRunning
+                ? [
+                    {
+                      label: '实际提升',
+                      value: `+¥${(sd.aiRevenue - sd.compRevenue).toLocaleString()} (+${(((sd.aiRevenue - sd.compRevenue) / sd.compRevenue) * 100).toFixed(1)}%)`,
+                      strong: true,
+                      colorClass: 'text-emerald-600',
+                    },
+                  ]
+                : [{ label: '实际提升', value: '—（当日未运行 AI）', colorClass: 'text-slate-400' }]),
+            ]}
+          />
+        ) : (
+          <SelectHint />
+        )}
+      </>
+    );
+  };
+
+  return (
+    <>
+      <SwipeChartCard
+        accentClass="bg-blue-500"
+        title="本月运行策略收益统计"
+        badge="日收益对比"
+        legends={[
+          { color: '#3B82F6', label: '模拟策略收益 (基准)' },
+          { color: '#10B981', label: '当日实际收益' },
+        ]}
+        onOpenFullscreen={() => setIsFullscreen(true)}
+      >
+        {buildBody(daily)}
+      </SwipeChartCard>
+      {isFullscreen && (
+        <FullscreenChartModal title="本月运行策略收益统计 (完整 31 天)" subtitle="蓝色 = 模拟基准 · 绿色 = 当日实际 · 柱顶绿色 = 差值 · 按住拖动查看全月" onClose={() => setIsFullscreen(false)}>
+          {buildBody(daily, true)}
+        </FullscreenChartModal>
+      )}
+    </>
+  );
+};
+
+// ==================== CHART 2: AI策略光伏数据评估（日消纳率对比） ====================
 export const PvSelfConsumptionComparisonChart: React.FC<ChartProps> = ({ report }) => {
-  const [activeDay, setActiveDay] = useState<number | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const { selectedDay, handleChartClick } = useDaySelect();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const daily = report.dailyList;
+  const baseRate = report.summary.solarAbsorptionBaseRate;
 
-  const dailyList = report.dailyList;
-
-  const handleDaySelect = (day: number) => {
-    setActiveDay(activeDay === day ? null : day);
-  };
-
-  const selectedDayData = dailyList.find(d => d.day === activeDay);
-
-  const renderChartContent = (isModal: boolean) => {
-    const minWidth = isModal ? "w-[1200px]" : "w-[960px]";
-
-    return (
-      <div className="flex h-[240px] relative overflow-hidden bg-white rounded-xl">
-        {/* Sticky Left Y-Axis */}
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-white/95 backdrop-blur-xs z-20 flex flex-col justify-between py-6 border-r border-slate-100 text-[8px] text-slate-400 font-mono pl-1">
-          <span>100%</span>
-          <span>75%</span>
-          <span>50%</span>
-          <span>25%</span>
-          <span>0%</span>
-        </div>
-
-        {/* Scrollable Bars Area */}
-        <div className="flex-1 overflow-x-auto pl-12 scrollbar-none">
-          <div className={`relative h-full ${minWidth} flex items-end justify-between px-2 pb-6 pt-4`}>
-            {/* Grid background lines */}
-            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none z-0">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-full border-b border-dashed border-slate-100" />
-              ))}
-            </div>
-
-            {/* Daily Bars */}
-            {dailyList.map((dayData) => {
-              const { day, isAiRunning } = dayData;
-              
-              // Calculate deterministic absorption percentage
-              // Base rate around 75% - 87%
-              const baseRate = 74 + ((day * 23) % 13) + ((day * 7) % 3);
-              // AI improvement +3% to +9%
-              const improvement = isAiRunning ? (3.5 + ((day * 11) % 6) * 0.9) : 0;
-              const aiRate = Math.min(99.8, baseRate + improvement);
-
-              const baseHeight = baseRate;
-              const aiExtraHeight = improvement;
-
-              const isSelected = activeDay === day;
-
-              return (
-                <div 
-                  key={day} 
-                  onClick={() => handleDaySelect(day)}
-                  className="flex flex-col items-center flex-1 cursor-pointer group z-10 relative px-0.5"
-                >
-                  {/* Stacking Bar */}
-                  <div className="w-4 sm:w-5 h-[140px] flex flex-col justify-end relative rounded-t-xs overflow-hidden transition-all duration-300">
-                    {isAiRunning ? (
-                      <>
-                        {/* AI Solar Extra (Orange) */}
-                        <div 
-                          style={{ height: `${aiExtraHeight}%` }} 
-                          className={`w-full bg-orange-500 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                        />
-                        {/* Base Solar (Yellow) */}
-                        <div 
-                          style={{ height: `${baseHeight}%` }} 
-                          className={`w-full bg-amber-400 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                        />
-                      </>
-                    ) : (
-                      /* AI Not Active (Gray) */
-                      <div 
-                        style={{ height: `${baseHeight}%` }} 
-                        className={`w-full bg-slate-300 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
-                      />
-                    )}
-
-                    {/* Selection border */}
-                    {isSelected && (
-                      <div className="absolute inset-0 border-2 border-slate-900 rounded-t-xs pointer-events-none animate-pulse" />
-                    )}
-                  </div>
-
-                  {/* Day Label */}
-                  <span className={`text-[8px] mt-1 font-extrabold font-mono transition-all flex items-center justify-center w-4 h-4 rounded-full ${
-                    isSelected 
-                      ? 'bg-slate-900 text-white scale-110 font-black shadow-xs' 
-                      : isAiRunning 
-                        ? 'bg-emerald-500 text-white font-black' 
-                        : 'bg-slate-100 text-slate-400 font-bold'
-                  }`}>
-                    {day}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs relative">
-      {/* Chart Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-4 bg-amber-400 rounded-xs" />
-          <h3 className="text-xs font-black text-slate-800 tracking-tight">每日光伏消纳率趋势统计</h3>
-        </div>
-        <button 
-          onClick={() => setIsFullscreen(true)}
-          className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1"
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-          <span className="text-[10px] font-bold hidden sm:inline">横屏模式</span>
-        </button>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-[9px] text-slate-500 font-bold mb-3 border-b border-slate-50 pb-2">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-amber-400 rounded-xs" />
-          <span>基础策略消纳率</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-orange-500 rounded-xs animate-pulse" />
-          <span>实际消纳</span>
-        </div>
-      </div>
-
-
-
-      {/* Embedded Swipable Chart */}
-      {renderChartContent(false)}
-
-      {/* Tooltip detail bar */}
-      <div className="mt-2.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 min-h-[48px] flex items-center">
-        {selectedDayData ? (
-          (() => {
-            const baseRate = 74 + ((selectedDayData.day * 23) % 13) + ((selectedDayData.day * 7) % 3);
-            const improvement = selectedDayData.isAiRunning ? (3.5 + ((selectedDayData.day * 11) % 6) * 0.9) : 0;
-            const aiRate = baseRate + improvement;
-            
-            return (
-              <div className="flex items-center gap-2 sm:gap-3 text-[10px] flex-wrap w-full">
-                <div className="flex items-center gap-2 sm:gap-3 font-mono flex-wrap">
-                  <span>基础策略消纳率: <strong className="text-slate-850">{baseRate.toFixed(1)}%</strong></span>
-                  {selectedDayData.isAiRunning ? (
-                    <>
-                      <span>实际消纳: <strong className="text-orange-600">{aiRate.toFixed(1)}%</strong></span>
-                      <span className="text-emerald-500 font-black bg-emerald-50 px-1 py-0.5 rounded-xs shrink-0">
-                        消纳提升: +{improvement.toFixed(1)}%
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-slate-400">无提升</span>
-                  )}
-                </div>
-              </div>
-            );
-          })()
-        ) : (
-          <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 justify-center w-full">
-            <Sun className="w-3.5 h-3.5 text-amber-500 animate-spin-slow shrink-0" />
-            <span>点按上方任意光伏消纳柱形图即可锁定显示每日比率</span>
-          </div>
-        )}
-      </div>
-
-      {/* Landscape Modal */}
-      {isFullscreen && (
-        <div className="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center">
-          <div className="bg-white w-full h-full shadow-2xl flex flex-col relative portrait:rotate-90 portrait:w-[100vh] portrait:h-[100vw] portrait:rounded-none landscape:w-screen landscape:h-screen landscape:rounded-none transition-all duration-300">
-            <button 
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-4 right-4 z-30 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all"
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
-
-            <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between overflow-hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-3 h-5 bg-amber-450 rounded-xs" />
-                  <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    {report.month} 每日光伏消纳消纳率趋势统计对比 (完整展开)
-                  </h3>
-                </div>
-                <p className="text-[10px] text-slate-400 font-bold mb-2">
-                  黄色代表本地绿电直接消耗的比例，橙色代表由AI算法在低功耗或储能调度时挽回的光伏消纳漏失。
-                </p>
-              </div>
-
-              <div className="flex-1 flex flex-col justify-center my-2 overflow-y-auto">
-                {renderChartContent(true)}
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center min-h-[44px]">
-                {selectedDayData ? (
-                  (() => {
-                    const baseRate = 74 + ((selectedDayData.day * 23) % 13) + ((selectedDayData.day * 7) % 3);
-                    const improvement = selectedDayData.isAiRunning ? (1.5 + ((selectedDayData.day * 11) % 4) + ((selectedDayData.day * 3) % 2) * 0.5) : 0;
-                    const aiRate = baseRate + improvement;
-                    
-                    return (
-                      <div className="flex items-center gap-2 sm:gap-3 text-xs flex-wrap w-full">
-                        <span className="bg-slate-900 text-white font-extrabold px-1.5 py-0.5 rounded-md font-mono text-[10px] shrink-0 leading-none">
-                          {selectedDayData.day}日
-                        </span>
-                        <div className="flex items-center gap-2 sm:gap-4 font-mono flex-wrap text-slate-600 font-bold">
-                          <span>基础策略消纳率: <strong className="text-slate-800">{baseRate.toFixed(1)}%</strong></span>
-                          {selectedDayData.isAiRunning ? (
-                            <>
-                              <span>实际消纳: <strong className="text-emerald-600 font-black">{aiRate.toFixed(1)}%</strong></span>
-                              <span className="text-emerald-500 font-black bg-emerald-50 px-1 py-0.5 rounded-xs shrink-0 text-[10px]">
-                                消纳提升: +{improvement.toFixed(1)}%
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-slate-400 font-medium">常规模拟期</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="flex items-center justify-between w-full text-xs font-bold text-slate-600 flex-wrap gap-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-slate-900 font-black">消纳汇总:</span>
-                      <span>实际消纳率: <strong className="text-slate-900">{report.summary.solarAbsorptionRate}%</strong></span>
-                      <span>基础策略消纳率: <strong className="text-slate-500">{report.summary.solarAbsorptionBaseRate}%</strong></span>
-                      <span>消纳纯提升: <strong className="text-emerald-600 font-black">+{report.summary.solarAbsorptionImprovementRate}%</strong></span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      提示：点击上方柱形图即可查看每日比对细节
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-
-// ==================== CHART 3: STORAGE ENGERY CHARGE/DISCHARGE COMPARISON ====================
-export const StorageComparisonChart: React.FC<ChartProps> = ({ report }) => {
-  const [activeDay, setActiveDay] = useState<number | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  const dailyList = report.dailyList;
-  const maxEnergyLimit = 1000; // Peak energy capacity limit for scaling
-
-  const handleDaySelect = (day: number) => {
-    setActiveDay(activeDay === day ? null : day);
-  };
-
-  const selectedDayData = dailyList.find(d => d.day === activeDay);
-
-  const renderChartContent = (isModal: boolean) => {
-    const minWidth = isModal ? "w-[1200px]" : "w-[960px]";
-
-    return (
-      <div className="flex h-[280px] relative overflow-hidden bg-white rounded-xl">
-        {/* Sticky Left Y-Axis */}
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-white/95 backdrop-blur-xs z-20 flex flex-col justify-between py-6 border-r border-slate-100 text-[8px] text-slate-400 font-mono pl-1">
-          <span>1,000 kWh</span>
-          <span>500 kWh</span>
-          <span className="text-slate-600 font-black">0 (基线)</span>
-          <span>500 kWh</span>
-          <span>1,000 kWh</span>
-        </div>
-
-        {/* Scrollable Bars Area */}
-        <div className="flex-1 overflow-x-auto pl-12 scrollbar-none">
-          <div className={`relative h-full ${minWidth} flex items-center justify-between px-2 pb-6 pt-6`}>
-            {/* Center Baseline line */}
-            <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-slate-300 z-10 pointer-events-none" />
-
-            {/* Grid background lines */}
-            <div className="absolute inset-y-6 left-0 right-0 flex flex-col justify-between pointer-events-none z-0">
-              <div className="w-full border-b border-dashed border-slate-100" />
-              <div className="w-full border-b border-dashed border-slate-100" />
-              <div className="w-full" /> {/* Center */}
-              <div className="w-full border-b border-dashed border-slate-100" />
-              <div className="w-full border-b border-dashed border-slate-100" />
-            </div>
-
-            {/* Daily Bars */}
-            {dailyList.map((dayData) => {
-              const { day, chargeEnergy, dischargeEnergy, isAiRunning } = dayData;
-              
-              // Top half: Discharging (Positive)
-              // Base discharge is orange, AI improvement stacked on top
-              const baseDischarge = Math.min(maxEnergyLimit, dischargeEnergy);
-              const extraDischarge = isAiRunning ? baseDischarge * 0.16 : 0;
-              
-              const baseDischargeHeight = (baseDischarge / maxEnergyLimit) * 100;
-              const extraDischargeHeight = (extraDischarge / maxEnergyLimit) * 100;
-
-              // Bottom half: Charging (Negative)
-              // Base charge is blue, AI improvement stacked below
-              const baseCharge = Math.min(maxEnergyLimit, chargeEnergy);
-              const extraCharge = isAiRunning ? baseCharge * 0.14 : 0;
-
-              const baseChargeHeight = (baseCharge / maxEnergyLimit) * 100;
-              const extraChargeHeight = (extraCharge / maxEnergyLimit) * 100;
-
-              const isSelected = activeDay === day;
-
-              return (
-                <div 
-                  key={day} 
-                  onClick={() => handleDaySelect(day)}
-                  className="flex flex-col items-center flex-1 cursor-pointer group z-10 relative h-full justify-between py-1 px-0.5"
-                >
-                  {/* Day Label (Rendered top in landscape if needed, but we keep labels aligned) */}
-                  <span className="invisible text-[1px]">.</span>
-
-                  {/* Dual Bar Container */}
-                  <div className="relative w-4 sm:w-5 h-[200px] flex flex-col justify-center">
-                    {/* Discharging Bar (Grows UPWARDS from middle line) */}
-                    <div className="absolute bottom-1/2 left-0 right-0 top-0 flex flex-col justify-end">
-                      {isAiRunning ? (
-                        <div className="w-full h-full flex flex-col justify-end items-center rounded-t-xs overflow-hidden">
-                          {/* AI extra discharge (Green) */}
-                          <div 
-                            style={{ height: `${extraDischargeHeight}%` }} 
-                            className={`w-full bg-emerald-500 transition-all duration-300 ${isSelected ? 'opacity-100 animate-pulse' : 'opacity-85 group-hover:opacity-100'}`}
-                          />
-                          {/* Base discharge (Orange) */}
-                          <div 
-                            style={{ height: `${baseDischargeHeight}%` }} 
-                            className={`w-full bg-orange-400 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                          />
-                        </div>
-                      ) : (
-                        /* Unmanaged regular discharge (Gray) */
-                        <div className="w-full h-full flex flex-col justify-end items-center rounded-t-xs overflow-hidden">
-                          <div 
-                            style={{ height: `${baseDischargeHeight}%` }} 
-                            className={`w-full bg-slate-300 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Charging Bar (Grows DOWNWARDS from middle line) */}
-                    <div className="absolute top-1/2 left-0 right-0 bottom-0 flex flex-col justify-start">
-                      {isAiRunning ? (
-                        <div className="w-full h-full flex flex-col justify-start items-center rounded-b-xs overflow-hidden">
-                          {/* Base charge (Blue) */}
-                          <div 
-                            style={{ height: `${baseChargeHeight}%` }} 
-                            className={`w-full bg-blue-500 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                          />
-                          {/* AI extra charge (Green) */}
-                          <div 
-                            style={{ height: `${extraChargeHeight}%` }} 
-                            className={`w-full bg-emerald-500 transition-all duration-300 ${isSelected ? 'opacity-100 animate-pulse' : 'opacity-85 group-hover:opacity-100'}`}
-                          />
-                        </div>
-                      ) : (
-                        /* Unmanaged regular charge (Gray) */
-                        <div className="w-full h-full flex flex-col justify-start items-center rounded-b-xs overflow-hidden">
-                          <div 
-                            style={{ height: `${baseChargeHeight}%` }} 
-                            className={`w-full bg-slate-400 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Interactive Outline Selection Overlay */}
-                    {isSelected && (
-                      <div className="absolute inset-x-0 top-1/10 bottom-1/10 border-2 border-slate-900 rounded-sm pointer-events-none animate-pulse z-20" />
-                    )}
-                  </div>
-
-                  {/* Day Label (Aligned at the very bottom) */}
-                  <span className={`text-[8px] font-extrabold font-mono transition-all flex items-center justify-center w-4 h-4 rounded-full ${
-                    isSelected 
-                      ? 'bg-slate-900 text-white scale-110 font-black shadow-xs' 
-                      : isAiRunning 
-                        ? 'bg-emerald-500 text-white font-black' 
-                        : 'bg-slate-100 text-slate-400 font-bold'
-                  }`}>
-                    {day}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs relative">
-      {/* Chart Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-4 bg-blue-500 rounded-xs" />
-          <h3 className="text-xs font-black text-slate-800 tracking-tight">每日储能充放电对比</h3>
-        </div>
-        <button 
-          onClick={() => setIsFullscreen(true)}
-          className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1"
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-          <span className="text-[10px] font-bold hidden sm:inline">横屏模式</span>
-        </button>
-      </div>
-
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[9px] text-slate-500 font-bold mb-3 border-b border-slate-50 pb-2">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-orange-400 rounded-xs" />
-          <span>基础策略放电</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-blue-500 rounded-xs" />
-          <span>基础策略充电</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-xs" />
-          <span>AI 策略优化吞吐</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-slate-300 rounded-xs" />
-          <span>实际充放 (未托管)</span>
-        </div>
-      </div>
-
-
-
-      {/* Embedded Swipable Chart */}
-      {renderChartContent(false)}
-
-      {/* Interactive Daily Summary Bar */}
-      <div className="mt-2.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 min-h-[48px] flex items-center">
-        {selectedDayData ? (
-          (() => {
-            const baseDis = selectedDayData.dischargeEnergy;
-            const extraDis = selectedDayData.isAiRunning ? baseDis * 0.16 : 0;
-            const aiDis = baseDis + extraDis;
-
-            const baseChg = selectedDayData.chargeEnergy;
-            const extraChg = selectedDayData.isAiRunning ? baseChg * 0.14 : 0;
-            const aiChg = baseChg + extraChg;
-
-            return (
-              <div className="flex items-center gap-2 sm:gap-3 text-[10px] flex-wrap w-full">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 font-mono w-full sm:w-auto">
-                  <span>放电: 基础 <strong>{baseDis.toFixed(0)} kWh</strong> ｜ AI <strong className="text-emerald-600">{aiDis.toFixed(0)} kWh</strong> <span className="text-emerald-500 font-normal">(+{extraDis.toFixed(0)})</span></span>
-                  <span>充电: 基础 <strong>{baseChg.toFixed(0)} kWh</strong> ｜ AI <strong className="text-blue-600">{aiChg.toFixed(0)} kWh</strong> <span className="text-blue-500 font-normal">(+{extraChg.toFixed(0)})</span></span>
-                </div>
-              </div>
-            );
-          })()
-        ) : (
-          <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 justify-center w-full">
-            <Battery className="w-3.5 h-3.5 text-blue-500 animate-pulse shrink-0" />
-            <span>点按上方双向充放电柱形图即可锁定显示每日充放对比</span>
-          </div>
-        )}
-      </div>
-
-      {/* Fullscreen Overlay */}
-      {isFullscreen && (
-        <div className="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center">
-          <div className="bg-white w-full h-full shadow-2xl flex flex-col relative portrait:rotate-90 portrait:w-[100vh] portrait:h-[100vw] portrait:rounded-none landscape:w-screen landscape:h-screen landscape:rounded-none transition-all duration-300">
-            <button 
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-4 right-4 z-30 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all"
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
-
-            <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between overflow-hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-3 h-5 bg-blue-550 rounded-xs" />
-                  <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    {report.month} 运行策略储能双向充放电对比 (完整展开)
-                  </h3>
-                </div>
-                <p className="text-[10px] text-slate-400 font-bold mb-2">
-                  柱图以水平零刻度线为界，上方为放电（释能削峰），下方为充电（蓄能谷期）。绿色堆叠柱为智能AI调峰所获取的吞吐收益增量。
-                </p>
-              </div>
-
-              <div className="flex-1 flex flex-col justify-center my-2 overflow-y-auto">
-                {renderChartContent(true)}
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center min-h-[44px]">
-                {selectedDayData ? (
-                  (() => {
-                    const baseDis = selectedDayData.dischargeEnergy;
-                    const extraDis = selectedDayData.isAiRunning ? (12 + (selectedDayData.day * 7) % 9) : 0;
-                    const aiDis = baseDis + extraDis;
-                    const baseChg = selectedDayData.chargeEnergy;
-                    const extraChg = selectedDayData.isAiRunning ? (10 + (selectedDayData.day * 5) % 11) : 0;
-                    const aiChg = baseChg + extraChg;
-
-                    return (
-                      <div className="flex items-center gap-2 sm:gap-3 text-xs flex-wrap w-full">
-                        <span className="bg-slate-900 text-white font-extrabold px-1.5 py-0.5 rounded-md font-mono text-[10px] shrink-0 leading-none">
-                          {selectedDayData.day}日
-                        </span>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 font-mono text-slate-600 font-bold w-full sm:w-auto">
-                          <span>放电: 基础 <strong>{baseDis.toFixed(0)} kWh</strong> ｜ AI <strong className="text-emerald-600 font-black">{aiDis.toFixed(0)} kWh</strong> <span className="text-emerald-500 font-normal text-[10px]">(+{extraDis.toFixed(0)})</span></span>
-                          <span>充电: 基础 <strong>{baseChg.toFixed(0)} kWh</strong> ｜ AI <strong className="text-blue-600 font-black">{aiChg.toFixed(0)} kWh</strong> <span className="text-blue-500 font-normal text-[10px]">(+{extraChg.toFixed(0)})</span></span>
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="flex items-center justify-between w-full text-xs font-bold text-slate-600 flex-wrap gap-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-slate-900 font-black">充放汇总:</span>
-                      <span>AI月总充电: <strong className="text-blue-600">{report.summary.aiChargeEnergy.toLocaleString()} kWh</strong></span>
-                      <span>AI月总放电: <strong className="text-orange-600">{report.summary.aiDischargeEnergy.toLocaleString()} kWh</strong></span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      提示：点击上方柱形图即可查看每日比对细节
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ==================== CHART 4: NEGATIVE PRICE CURTAILMENT & STOP LOSS ====================
-export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
-  const [activeDay, setActiveDay] = useState<number | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  const dailyList = report.dailyList;
-  const maxStopLoss = 600; // Peak stop-loss daily revenue (left axis)
-  const maxCurtailment = 60000; // Peak curtailment energy in Wh (right axis) -> wait, in kWh, it represents 60 kWh or 60k Wh.
-  
-  const handleDaySelect = (day: number) => {
-    setActiveDay(activeDay === day ? null : day);
-  };
-
-  const selectedDayData = dailyList.find(d => d.day === activeDay);
-
-  const renderChartContent = (isModal: boolean) => {
-    const minWidth = isModal ? "w-[1200px]" : "w-[960px]";
-
-    // Calculate curve points as percentages for responsive path drawing
-    const points = dailyList.map((dayData, index) => {
-      const x = ((index + 0.5) / dailyList.length) * 100;
-      const y = 100 - (dayData.curtailmentEnergy / maxCurtailment) * 80 - 10; // offset a bit to not touch the absolute top/bottom edges
-      return { x, y, day: dayData.day, energy: dayData.curtailmentEnergy };
+  const buildData = (days: DailyData[]) =>
+    days.map((d) => {
+      const traditional = 70 + ((d.day * 17) % 15);
+      const base = parseFloat(traditional.toFixed(1));
+      const aiBoost = d.isAiRunning ? parseFloat((5 + ((d.day * 7) % 8)).toFixed(1)) : 0;
+      return {
+        day: `${d.day}日`,
+        hasAi: d.isAiRunning,
+        simulatedPv: base,
+        aiPv: d.isAiRunning ? parseFloat(Math.min(100, base + aiBoost).toFixed(1)) : base,
+      };
     });
 
-    // Generate polyline path
-    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const sd = daily.find((d) => d.day === selectedDay);
+  const sdData = sd ? buildData([sd])[0] : null;
 
-    return (
-      <div className="flex h-[240px] relative overflow-hidden bg-white rounded-xl">
-        {/* Sticky Left Y-Axis (止损金额 - 元) */}
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-white/95 backdrop-blur-xs z-20 flex flex-col justify-between py-6 border-r border-slate-100 text-[8px] text-slate-400 font-mono pl-1">
-          <span>¥600</span>
-          <span>¥450</span>
-          <span>¥300</span>
-          <span>¥150</span>
-          <span>¥0</span>
-        </div>
-
-        {/* Sticky Right Y-Axis (限电电量 - kWh) */}
-        <div className="absolute right-0 top-0 bottom-0 w-12 bg-white/95 backdrop-blur-xs z-20 flex flex-col justify-between py-6 border-l border-slate-100 text-[8px] text-slate-400 font-mono pr-1 text-right">
-          <span>60k</span>
-          <span>45k</span>
-          <span>30k</span>
-          <span>15k</span>
-          <span>0k</span>
-        </div>
-
-        {/* Scrollable Area */}
-        <div className="flex-1 overflow-x-auto px-12 scrollbar-none">
-          <div className={`relative h-full ${minWidth} flex items-end justify-between px-2 pb-6 pt-4`}>
-            {/* Grid background lines */}
-            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none z-0">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-full border-b border-dashed border-slate-100" />
-              ))}
-            </div>
-
-            {/* SVG Connecting Polyline for curtailment energy curve */}
-            <svg 
-              viewBox="0 0 100 100" 
-              preserveAspectRatio="none" 
-              className="absolute inset-x-2 top-4 bottom-6 w-[calc(100%-16px)] h-[calc(100%-40px)] pointer-events-none z-15"
-            >
-              <path
-                d={pathD}
-                fill="none"
-                stroke="#2563eb"
-                strokeWidth="1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="drop-shadow-[0_1px_2px_rgba(37,99,235,0.4)]"
-              />
-            </svg>
-
-            {/* Daily Stop Loss Bars + Curve Dots */}
-            {dailyList.map((dayData, index) => {
-              const { day, stopLossRevenue, curtailmentEnergy } = dayData;
-              
-              // Scale heights
-              const barHeight = Math.min(100, (stopLossRevenue / maxStopLoss) * 100);
-              const isSelected = activeDay === day;
-
-              // Dot position inside the container
-              const dotY = 100 - (curtailmentEnergy / maxCurtailment) * 80 - 10;
-
-              return (
-                <div 
-                  key={day} 
-                  onClick={() => handleDaySelect(day)}
-                  className="flex flex-col items-center flex-1 cursor-pointer group z-10 relative px-0.5 animate-fade-in"
-                >
-                  {/* Dynamic Curve Node Point */}
-                  {curtailmentEnergy > 0 && (
-                    <div 
-                      style={{ 
-                        bottom: `${100 - dotY}%`,
-                        transform: 'translateY(50%)'
-                      }}
-                      className={`absolute w-1.5 h-1.5 rounded-full bg-blue-600 border border-white z-25 transition-all duration-300 ${
-                        isSelected ? 'scale-150 ring-4 ring-blue-100' : 'group-hover:scale-125'
-                      }`}
-                    />
-                  )}
-
-                  {/* Stacking Bar for Stop Loss Revenue */}
-                  <div className="w-4 sm:w-5 h-[140px] flex flex-col justify-end relative rounded-t-xs overflow-hidden transition-all duration-300">
-                    <div 
-                      style={{ height: `${barHeight}%` }} 
-                      className={`w-full bg-emerald-500 transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-85 group-hover:opacity-100'}`}
-                    />
-
-                    {/* Selection Glow Indicator */}
-                    {isSelected && (
-                      <div className="absolute inset-0 border-2 border-slate-900 rounded-t-xs pointer-events-none animate-pulse" />
-                    )}
+  const buildChart = (data: ReturnType<typeof buildData>, heightClass: string) => (
+    <DragScrollArea minWidth={Math.max(320, data.length * DAY_WIDTH)}>
+      <div className={heightClass}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={data}
+            margin={{ top: 14, right: 4, left: 0, bottom: 0 }}
+            barGap={1}
+            barCategoryGap="28%"
+            onClick={(state: any) => handleChartClick(state, data)}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEDF2" />
+            <XAxis
+              dataKey="day"
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              interval={0}
+              tick={(props: any) => <DayTick {...props} hasAi={data[(props as any).index]?.hasAi} />}
+            />
+            <YAxis
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              tick={{ fill: '#7F8C8D', fontSize: 9 }}
+              tickFormatter={(val) => `${val}%`}
+              domain={[0, 110]}
+              width={34}
+            />
+            <Tooltip
+              cursor={{ fill: '#F4F6F9' }}
+              content={({ active, payload, label }: any) => {
+                if (!active || !payload || !payload.length) return null;
+                const d = payload[0].payload;
+                const diff = (d.aiPv - d.simulatedPv).toFixed(1);
+                return (
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[190px]">
+                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100">{label} · 光伏消纳对比</div>
+                    <div className="space-y-1.5 text-[10px]">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#F59E0B]" />模拟策略消纳率</span>
+                        <span className="font-bold text-slate-700">{d.simulatedPv}%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />当日实际消纳率</span>
+                        <span className="font-bold text-emerald-600">{d.aiPv}%</span>
+                      </div>
+                      {d.hasAi && (
+                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-emerald-50 p-1.5 rounded-lg">
+                          <span className="text-emerald-800 font-bold">消纳率提升:</span>
+                          <span className="font-black text-emerald-600">+{diff}%</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Day Label */}
-                  <span className={`text-[8px] mt-1 font-extrabold font-mono transition-all flex items-center justify-center w-4 h-4 rounded-full ${
-                    isSelected 
-                      ? 'bg-slate-900 text-white scale-110 font-black shadow-xs' 
-                      : stopLossRevenue > 0 || curtailmentEnergy > 0
-                        ? 'bg-blue-600 text-white font-black' 
-                        : 'bg-slate-100 text-slate-400 font-bold'
-                  }`}>
-                    {day}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                );
+              }}
+            />
+            <Bar dataKey="simulatedPv" name="模拟策略消纳率" fill="#F59E0B" fillOpacity={0.85} radius={[2, 2, 0, 0]} barSize={7} />
+            <Bar dataKey="aiPv" name="当日实际消纳率" fill="#10B981" radius={[2, 2, 0, 0]} barSize={7} />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
+    </DragScrollArea>
+  );
+
+  const buildBody = (days: DailyData[], fullscreen = false) => {
+    const data = buildData(days);
+    return (
+      <>
+        {buildChart(data, fullscreen ? 'h-full' : 'h-[200px]')}
+        {sdData ? (
+          <DayDetailPanel
+            title={`${sd!.day}日 · 光伏消纳`}
+            aiRunning={sd!.isAiRunning}
+            rows={[
+              { label: '模拟策略消纳率 (基准)', value: `${sdData.simulatedPv}%` },
+              { label: '当日实际消纳率', value: `${sdData.aiPv}%`, strong: true, colorClass: 'text-emerald-600' },
+              {
+                label: '消纳率提升',
+                value: sd!.isAiRunning ? `+${(sdData.aiPv - sdData.simulatedPv).toFixed(1)} pct` : '—（当日未运行 AI）',
+                strong: sd!.isAiRunning,
+                colorClass: sd!.isAiRunning ? 'text-emerald-600' : 'text-slate-400',
+              },
+            ]}
+          />
+        ) : (
+          <SelectHint />
+        )}
+      </>
     );
   };
 
   return (
-    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs relative">
-      {/* Chart Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-4 bg-emerald-500 rounded-xs" />
-          <h3 className="text-xs font-black text-slate-800 tracking-tight">每日负电价限电止损组合图</h3>
-        </div>
-        <button 
-          onClick={() => setIsFullscreen(true)}
-          className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-1"
-          title="横屏全屏展示"
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-          <span className="text-[10px] font-bold hidden sm:inline">横屏模式</span>
-        </button>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-[9px] text-slate-500 font-bold mb-3 border-b border-slate-50 pb-2">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-xs" />
-          <span>止损金额 (左轴·元)</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-0.5 bg-blue-600 inline-block" />
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 border border-white inline-block -ml-2" />
-          <span>限电电量 (右轴·kWh)</span>
-        </div>
-      </div>
-
-
-
-      {/* Embedded Swipable Chart */}
-      {renderChartContent(false)}
-
-      {/* Dedicated Interactive Tooltip Banner */}
-      <div className="mt-2.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 min-h-[48px] flex items-center">
-        {selectedDayData ? (
-          <div className="flex items-center gap-2 sm:gap-3 text-[10px] flex-wrap w-full">
-            <div className="flex items-center gap-2 sm:gap-3 font-mono flex-wrap">
-              <span>止损挽回: <strong className="text-emerald-600">¥{selectedDayData.stopLossRevenue}</strong></span>
-              <span>限电量: <strong className="text-blue-600">{(selectedDayData.curtailmentEnergy / 1000).toFixed(1)}k kWh</strong></span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 justify-center w-full">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 animate-pulse shrink-0" />
-            <span>点按上方柱形图即可锁定显示每日止损和限电量明细</span>
-          </div>
-        )}
-      </div>
-
-      {/* ==================== LANDSCAPE FULLSCREEN MODAL OVERLAY ==================== */}
+    <>
+      <SwipeChartCard
+        accentClass="bg-amber-500"
+        title="AI策略光伏数据评估"
+        badge="日消纳率对比"
+        legends={[
+          { color: '#F59E0B', label: '模拟策略消纳率 (基准)' },
+          { color: '#10B981', label: '当日实际消纳率' },
+        ]}
+        onOpenFullscreen={() => setIsFullscreen(true)}
+      >
+        {buildBody(daily)}
+      </SwipeChartCard>
       {isFullscreen && (
-        <div className="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center">
-          <div className="bg-white w-full h-full shadow-2xl flex flex-col relative portrait:rotate-90 portrait:w-[100vh] portrait:h-[100vw] portrait:rounded-none landscape:w-screen landscape:h-screen landscape:rounded-none transition-all duration-300">
-            {/* Close Button */}
-            <button 
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-4 right-4 z-30 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all"
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
+        <FullscreenChartModal title="AI策略光伏数据评估 (完整 31 天)" subtitle={`当月实际消纳率 ${report.summary.solarAbsorptionRate}% · 基准 ${baseRate}% · 按住拖动查看全月`} onClose={() => setIsFullscreen(false)}>
+          {buildBody(daily, true)}
+        </FullscreenChartModal>
+      )}
+    </>
+  );
+};
 
-            {/* Modal Content */}
-            <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between overflow-hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-3 h-5 bg-emerald-500 rounded-xs" />
-                  <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    {report.month} 每日负电价限电止损细节对照图 (完整展开)
-                  </h3>
-                </div>
-                <p className="text-[10px] text-slate-400 font-bold mb-2">
-                  当监测到电网负电价时，AI下发限电策略（不发电、限制负荷等），绿色柱代表当日止损省下的倒贴费用，蓝色折线代表被限制未上网的电量。
-                </p>
-              </div>
+// ==================== CHART 3: 储能充放电统计（双向柱 + 利用率折线） ====================
+export const StorageComparisonChart: React.FC<ChartProps> = ({ report }) => {
+  const { selectedDay, handleChartClick } = useDaySelect();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const daily = report.dailyList;
 
-              {/* Expanded Chart */}
-              <div className="flex-1 flex flex-col justify-center my-2 overflow-y-auto">
-                {renderChartContent(true)}
-              </div>
+  const buildData = (days: DailyData[]) =>
+    days.map((d) => {
+      const simulatedDischarge = Math.round(d.dischargeEnergy * 0.82);
+      const simulatedCharge = -Math.round(d.chargeEnergy * 0.82);
+      const simulatedUtilRate = parseFloat(Math.min(98.5, Math.max(38, (simulatedDischarge / 750) * 100)).toFixed(1));
+      const aiUtilRate = parseFloat(Math.min(99.5, Math.max(48, (d.dischargeEnergy / 750) * 100)).toFixed(1));
+      return {
+        day: `${d.day}日`,
+        hasAi: d.isAiRunning,
+        simulatedDischarge,
+        aiDischarge: d.dischargeEnergy,
+        simulatedCharge,
+        aiCharge: -d.chargeEnergy,
+        simulatedUtilRate,
+        aiUtilRate,
+      };
+    });
 
-              {/* Bottom Details Row */}
-              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center min-h-[44px]">
-                {selectedDayData ? (
-                  <div className="flex items-center gap-2 sm:gap-3 text-xs flex-wrap w-full">
-                    <span className="bg-slate-900 text-white font-extrabold px-1.5 py-0.5 rounded-md font-mono text-[10px] shrink-0 leading-none">
-                      {selectedDayData.day}日
-                    </span>
-                    <div className="flex items-center gap-2 sm:gap-4 font-mono flex-wrap text-slate-600 font-bold">
-                      <span>止损挽回: <strong className="text-emerald-600 font-black">¥{selectedDayData.stopLossRevenue}</strong></span>
-                      <span>限电量: <strong className="text-blue-600">{(selectedDayData.curtailmentEnergy / 1000).toFixed(1)}k kWh</strong></span>
+  const sd = daily.find((d) => d.day === selectedDay);
+  const sdData = sd ? buildData([sd])[0] : null;
+
+  const buildChart = (data: ReturnType<typeof buildData>, heightClass: string) => (
+    <DragScrollArea minWidth={Math.max(320, data.length * DAY_WIDTH)}>
+      <div className={heightClass}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={data}
+            stackOffset="sign"
+            margin={{ top: 14, right: 4, left: 0, bottom: 0 }}
+            barGap={1}
+            barCategoryGap="28%"
+            onClick={(state: any) => handleChartClick(state, data)}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEDF2" />
+            <ReferenceLine y={0} stroke="#CBD5E1" strokeWidth={1} />
+            <XAxis
+              dataKey="day"
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              interval={0}
+              tick={(props: any) => <DayTick {...props} hasAi={data[(props as any).index]?.hasAi} />}
+            />
+            <YAxis
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              tick={{ fill: '#7F8C8D', fontSize: 9 }}
+              tickFormatter={(val) => `${Math.abs(val)}`}
+              width={34}
+            />
+            <YAxis yAxisId="util" hide domain={[0, 100]} />
+            <Tooltip
+              cursor={{ fill: '#F4F6F9' }}
+              content={({ active, payload, label }: any) => {
+                if (!active || !payload || !payload.length) return null;
+                const d = payload[0].payload;
+                return (
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[210px]">
+                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100">{label} · 储能充放电</div>
+                    <div className="space-y-1.5 text-[10px]">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#FB923C]" />模拟放电 (基准)</span>
+                        <span className="font-bold text-slate-700">{d.simulatedDischarge} kWh</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />实际放电 (优化)</span>
+                        <span className="font-bold text-emerald-600">{d.aiDischarge} kWh</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#93C5FD]" />模拟充电 (基准)</span>
+                        <span className="font-bold text-slate-700">{Math.abs(d.simulatedCharge)} kWh</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#059669]" />实际充电 (优化)</span>
+                        <span className="font-bold text-blue-600">{Math.abs(d.aiCharge)} kWh</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-indigo-50/60 p-1.5 rounded-lg">
+                        <span className="text-indigo-800 font-bold">利用率 (基准→实际):</span>
+                        <span className="font-black text-indigo-600">{d.simulatedUtilRate}% → {d.aiUtilRate}%</span>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between w-full text-xs font-bold text-slate-600 flex-wrap gap-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-slate-900 font-black">限电止损汇总:</span>
-                      <span>AI月累计止损: <strong className="text-emerald-600">¥{report.summary.stopLossRevenue.toLocaleString()}</strong></span>
-                      <span>AI月累计限电量: <strong className="text-blue-600">{(report.summary.curtailmentEnergy / 1000).toFixed(1)}k kWh</strong></span>
+                );
+              }}
+            />
+            <Bar dataKey="simulatedDischarge" name="模拟放电" stackId="simulated" fill="#FB923C" fillOpacity={0.8} radius={[2, 2, 0, 0]} barSize={7} />
+            <Bar dataKey="aiDischarge" name="实际放电" stackId="actual" fill="#10B981" radius={[2, 2, 0, 0]} barSize={7} />
+            <Bar dataKey="simulatedCharge" name="模拟充电" stackId="simulated" fill="#93C5FD" fillOpacity={0.8} radius={[0, 0, 2, 2]} barSize={7} />
+            <Bar dataKey="aiCharge" name="实际充电" stackId="actual" fill="#059669" radius={[0, 0, 2, 2]} barSize={7} />
+            <Line yAxisId="util" dataKey="simulatedUtilRate" stroke="#A855F7" strokeWidth={1.2} strokeDasharray="4 3" dot={false} />
+            <Line yAxisId="util" dataKey="aiUtilRate" stroke="#4F46E5" strokeWidth={1.5} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </DragScrollArea>
+  );
+
+  const buildBody = (days: DailyData[], fullscreen = false) => {
+    const data = buildData(days);
+    return (
+      <>
+        {buildChart(data, fullscreen ? 'h-full' : 'h-[260px]')}
+        {sdData ? (
+          <DayDetailPanel
+            title={`${sd!.day}日 · 储能充放`}
+            aiRunning={sd!.isAiRunning}
+            rows={[
+              { label: '放电量 (基准 → 实际)', value: `${sdData.simulatedDischarge} → ${sdData.aiDischarge} kWh`, strong: true, colorClass: 'text-emerald-600' },
+              { label: '充电量 (基准 → 实际)', value: `${Math.abs(sdData.simulatedCharge)} → ${Math.abs(sdData.aiCharge)} kWh`, strong: true, colorClass: 'text-blue-600' },
+              { label: '储能利用率 (基准 → 实际)', value: `${sdData.simulatedUtilRate}% → ${sdData.aiUtilRate}%`, colorClass: 'text-indigo-600' },
+            ]}
+          />
+        ) : (
+          <SelectHint />
+        )}
+      </>
+    );
+  };
+
+  return (
+    <>
+      <SwipeChartCard
+        accentClass="bg-indigo-500"
+        title="本月储能充放电统计"
+        badge="充放深度与利用率"
+        legends={[
+          { color: '#FB923C', label: '模拟放电 (基准)' },
+          { color: '#10B981', label: '实际放电 (优化)' },
+          { color: '#93C5FD', label: '模拟充电 (基准)' },
+          { color: '#059669', label: '实际充电 (优化)' },
+          { color: '#A855F7', label: '利用率 (虚线)', dashed: true },
+        ]}
+        onOpenFullscreen={() => setIsFullscreen(true)}
+      >
+        {buildBody(daily)}
+      </SwipeChartCard>
+      {isFullscreen && (
+        <FullscreenChartModal title="本月储能充放电统计 (完整 31 天)" subtitle="正值为放电 · 负值为充电 · 折线为储能利用率 · 按住拖动查看全月" onClose={() => setIsFullscreen(false)}>
+          {buildBody(daily, true)}
+        </FullscreenChartModal>
+      )}
+    </>
+  );
+};
+
+// ==================== CHART 4: 每日储能充放电均价与套利统计 ====================
+export const EssPriceSpreadChart: React.FC<ChartProps> = ({ report }) => {
+  const { selectedDay, handleChartClick } = useDaySelect();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const daily = report.dailyList;
+
+  const buildData = (days: DailyData[]) =>
+    days.map((d) => {
+      const gi = d.day - 1;
+      const baseChargePrice = parseFloat((0.382 + Math.sin(gi * 0.7) * 0.022).toFixed(3));
+      const baseDischargePrice = parseFloat((0.842 + Math.cos(gi * 0.5) * 0.026).toFixed(3));
+      const aiChargePrice = d.isAiRunning ? parseFloat((0.320 + Math.sin(gi * 0.9) * 0.016).toFixed(3)) : baseChargePrice;
+      const aiDischargePrice = d.isAiRunning ? parseFloat((0.918 + Math.cos(gi * 0.8) * 0.020).toFixed(3)) : baseDischargePrice;
+      return {
+        day: `${d.day}日`,
+        hasAi: d.isAiRunning,
+        simulatedChargePrice: baseChargePrice,
+        simulatedDischargePrice: baseDischargePrice,
+        aiChargePrice,
+        aiDischargePrice,
+        simulatedSpread: parseFloat((baseDischargePrice - baseChargePrice).toFixed(3)),
+        actualSpread: parseFloat((aiDischargePrice - aiChargePrice).toFixed(3)),
+      };
+    });
+
+  const allData = buildData(daily);
+  const avgSpread = (allData.reduce((s, d) => s + d.actualSpread, 0) / allData.length).toFixed(3);
+  const avgSimSpread = (allData.reduce((s, d) => s + d.simulatedSpread, 0) / allData.length).toFixed(3);
+  const gain = (parseFloat(avgSpread) - parseFloat(avgSimSpread)).toFixed(3);
+
+  const sd = daily.find((d) => d.day === selectedDay);
+  const sdData = sd ? buildData([sd])[0] : null;
+
+  const buildChart = (data: ReturnType<typeof buildData>, heightClass: string) => (
+    <DragScrollArea minWidth={Math.max(320, data.length * DAY_WIDTH)}>
+      <div className={heightClass}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={data}
+            margin={{ top: 14, right: 4, left: 0, bottom: 0 }}
+            barGap={1}
+            barCategoryGap="30%"
+            onClick={(state: any) => handleChartClick(state, data)}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEDF2" />
+            <XAxis
+              dataKey="day"
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              interval={0}
+              tick={(props: any) => <DayTick {...props} hasAi={data[(props as any).index]?.hasAi} />}
+            />
+            <YAxis
+              axisLine={{ stroke: '#EAEDF2' }}
+              tickLine={false}
+              tick={{ fill: '#7F8C8D', fontSize: 9 }}
+              tickFormatter={(val) => `¥${val.toFixed(2)}`}
+              domain={[0, 1.2]}
+              width={40}
+            />
+            <Tooltip
+              cursor={{ fill: '#F4F6F9' }}
+              content={({ active, payload, label }: any) => {
+                if (!active || !payload || !payload.length) return null;
+                const d = payload[0].payload;
+                const diffSpread = (d.actualSpread - d.simulatedSpread).toFixed(3);
+                return (
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl min-w-[210px]">
+                    <div className="text-[11px] font-black text-slate-800 pb-1.5 mb-1.5 border-b border-slate-100">{label} · 充放均价与套利</div>
+                    <div className="space-y-1.5 text-[10px]">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#F97316]" />当日放电价格</span>
+                        <span className="font-bold text-orange-500">¥{d.aiDischargePrice.toFixed(3)}/kWh</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>基准放电均价</span>
+                        <span className="font-semibold">¥{d.simulatedDischargePrice.toFixed(3)}/kWh</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-[2px] bg-[#10B981]" />当日充电成本</span>
+                        <span className="font-bold text-emerald-600">¥{d.aiChargePrice.toFixed(3)}/kWh</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>基准充电成本</span>
+                        <span className="font-semibold">¥{d.simulatedChargePrice.toFixed(3)}/kWh</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between bg-indigo-50/70 p-1.5 rounded-lg">
+                        <span className="text-indigo-950 font-bold">实际价差:</span>
+                        <span className="font-black text-indigo-500">¥{d.actualSpread.toFixed(3)} ({parseFloat(diffSpread) > 0 ? `+${diffSpread}` : '持平'})</span>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      提示：点击上方柱形图即可查看每日比对细节
-                    </span>
                   </div>
-                )}
+                );
+              }}
+            />
+            <Bar dataKey="actualSpread" name="充放价差" fill="#6366F1" fillOpacity={0.35} radius={[2, 2, 0, 0]} barSize={5} />
+            <Line dataKey="simulatedChargePrice" stroke="#3B82F6" strokeWidth={1.2} strokeDasharray="4 3" dot={false} />
+            <Line dataKey="aiChargePrice" stroke="#10B981" strokeWidth={1.5} dot={false} />
+            <Line dataKey="simulatedDischargePrice" stroke="#A855F7" strokeWidth={1.2} strokeDasharray="4 3" dot={false} />
+            <Line dataKey="aiDischargePrice" stroke="#F97316" strokeWidth={1.5} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </DragScrollArea>
+  );
+
+  const buildBody = (days: DailyData[], fullscreen = false) => {
+    const data = buildData(days);
+    return (
+      <>
+        {buildChart(data, fullscreen ? 'h-full' : 'h-[230px]')}
+        {sdData ? (
+          <DayDetailPanel
+            title={`${sd!.day}日 · 充放均价与套利`}
+            aiRunning={sd!.isAiRunning}
+            rows={[
+              { label: '放电价格 (实际 / 基准)', value: `¥${sdData.aiDischargePrice.toFixed(3)} / ¥${sdData.simulatedDischargePrice.toFixed(3)}`, colorClass: 'text-orange-500' },
+              { label: '充电成本 (实际 / 基准)', value: `¥${sdData.aiChargePrice.toFixed(3)} / ¥${sdData.simulatedChargePrice.toFixed(3)}`, colorClass: 'text-emerald-600' },
+              {
+                label: '实际价差 (套利空间)',
+                value: `¥${sdData.actualSpread.toFixed(3)} (基准 ¥${sdData.simulatedSpread.toFixed(3)}，${sdData.actualSpread - sdData.simulatedSpread > 0 ? `+${(sdData.actualSpread - sdData.simulatedSpread).toFixed(3)}` : '持平'})`,
+                strong: true,
+                colorClass: 'text-indigo-500',
+              },
+            ]}
+          />
+        ) : (
+          <SelectHint />
+        )}
+      </>
+    );
+  };
+
+  return (
+    <>
+      <SwipeChartCard
+        accentClass="bg-violet-500"
+        title="每日储能充放均价与套利"
+        badge="度电电价与利差"
+        legends={[
+          { color: '#10B981', label: '充电成本 (优化)' },
+          { color: '#3B82F6', label: '充电成本 (基准)', dashed: true },
+          { color: '#F97316', label: '放电价格 (优化)' },
+          { color: '#A855F7', label: '放电价格 (基准)', dashed: true },
+          { color: '#6366F1', label: '充放价差 (柱状)' },
+        ]}
+        onOpenFullscreen={() => setIsFullscreen(true)}
+      >
+        {buildBody(daily)}
+      </SwipeChartCard>
+      {isFullscreen && (
+        <FullscreenChartModal
+          title="每日储能充放均价与套利 (完整 31 天)"
+          subtitle={`全月充放均价差 ${avgSpread} 元/kWh · AI度电套利增益 +${gain} 元/kWh · 按住拖动查看全月`}
+          onClose={() => setIsFullscreen(false)}
+        >
+          {buildBody(daily, true)}
+        </FullscreenChartModal>
+      )}
+    </>
+  );
+};
+
+// ==================== CHART 5: 光伏限电止损 ====================
+export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const daily = report.dailyList;
+
+  const buildData = (days: DailyData[]) =>
+    days
+      .filter((d) => d.curtailmentEnergy > 0)
+      .map((d) => ({
+        day: `${d.day}日`,
+        dayNum: d.day,
+        curtailedEnergy: d.curtailmentEnergy,
+        lossSaved: d.stopLossRevenue,
+      }));
+
+  const allCurtailDays = daily.filter((d) => d.curtailmentEnergy > 0);
+  const totalCurtail = allCurtailDays.reduce((s, d) => s + d.curtailmentEnergy, 0).toFixed(1);
+  const totalSaved = allCurtailDays.reduce((s, d) => s + d.stopLossRevenue, 0);
+
+  const buildChart = (data: ReturnType<typeof buildData>, heightClass: string) => (
+    <DragScrollArea minWidth={Math.max(320, data.length * 40)}>
+      <div className={heightClass}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 14, right: 4, left: 0, bottom: 0 }} barGap={1} barCategoryGap="30%">
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEDF2" />
+            <XAxis dataKey="day" axisLine={{ stroke: '#EAEDF2' }} tickLine={false} interval={0} tick={{ fill: '#7F8C8D', fontSize: 8 }} />
+            <YAxis yAxisId="energy" axisLine={{ stroke: '#EAEDF2' }} tickLine={false} tick={{ fill: '#7F8C8D', fontSize: 9 }} width={30} />
+            <YAxis yAxisId="money" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#10B981', fontSize: 9 }} width={30} />
+            <Tooltip
+              cursor={{ fill: '#F4F6F9' }}
+              content={({ active, payload, label }: any) => {
+                if (!active || !payload || !payload.length) return null;
+                const d = payload[0].payload;
+                return (
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xl min-w-[160px] text-[10px]">
+                    <div className="font-black text-slate-800 pb-1 mb-1 border-b border-slate-100">{label} · 限电止损</div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-500">止损电量</span>
+                      <span className="font-bold text-rose-500">{d.curtailedEnergy} kWh</span>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-500">止损金额</span>
+                      <span className={`font-bold ${d.lossSaved >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {d.lossSaved >= 0 ? '+' : ''}¥{d.lossSaved}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            <Bar yAxisId="energy" dataKey="curtailedEnergy" name="止损电量" fill="#F43F5E" fillOpacity={0.75} radius={[2, 2, 0, 0]} barSize={9} />
+            <Line yAxisId="money" dataKey="lossSaved" stroke="#10B981" strokeWidth={1.5} dot={{ r: 2, fill: '#10B981' }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </DragScrollArea>
+  );
+
+  return (
+    <>
+      <SwipeChartCard
+        accentClass="bg-rose-500"
+        title="微电网限电调控减亏"
+        badge="止损电量与金额"
+        legends={[
+          { color: '#F43F5E', label: '止损电量 (kWh)' },
+          { color: '#10B981', label: '止损金额 (¥)' },
+        ]}
+        onOpenFullscreen={() => setIsFullscreen(true)}
+      >
+        {buildChart(buildData(daily), 'h-[200px]')}
+      </SwipeChartCard>
+      {isFullscreen && (
+        <FullscreenChartModal title="微电网限电调控减亏 (全月)" subtitle={`止损电量合计 ${totalCurtail} kWh · 止损金额合计 +¥${totalSaved.toLocaleString()} · 按住拖动查看全月`} onClose={() => setIsFullscreen(false)}>
+          <div className="h-full flex flex-col">
+            {buildChart(buildData(allCurtailDays), 'h-full')}
+            <div className="mt-2 grid grid-cols-2 gap-2 shrink-0">
+              <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                <span className="text-[9px] text-slate-400 font-extrabold block">止损电量合计</span>
+                <span className="text-sm font-black text-rose-500 font-mono">{totalCurtail} kWh</span>
+              </div>
+              <div className="bg-emerald-50/50 rounded-xl p-2 border border-emerald-100/50">
+                <span className="text-[9px] text-emerald-600 font-extrabold block">止损金额合计</span>
+                <span className="text-sm font-black text-emerald-600 font-mono">+¥{totalSaved.toLocaleString()}</span>
               </div>
             </div>
           </div>
-        </div>
+        </FullscreenChartModal>
       )}
-    </div>
+    </>
   );
 };
