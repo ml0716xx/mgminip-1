@@ -4,7 +4,9 @@
  *
  * 消息页
  * 结构（两层，互不混淆）：
- *   一级：报告通知 / 告警消息  —— 两类消息并列
+ *   一级：消息通知 / 告警消息  —— 两类消息并列
+ *      · 消息通知：报告类推送（天盈AI仿真 / 经营分析 / 策略运行），点击直达报告详情
+ *      · 告警消息：设备告警
  *   二级（仅告警分支内）：未恢复 / 已恢复 —— 告警的处置状态
  */
 
@@ -124,7 +126,7 @@ interface MessagesTabProps {
 }
 
 export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
-  // 一级分类：报告通知 / 告警消息
+  // 一级分类：消息通知 / 告警消息
   const [category, setCategory] = useState<'report' | 'alarm'>('alarm');
   // 二级分类（仅告警）：未恢复 / 已恢复
   const [alarmState, setAlarmState] = useState<'unrecovered' | 'recovered'>('recovered');
@@ -191,16 +193,16 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
             </AnimatePresence>
           </div>
         ) : (
-          <span className="text-[10px] text-gray-400 font-bold">共 {REPORT_MESSAGES.length} 条报告通知</span>
+          <span className="text-[10px] text-gray-400 font-bold">共 {REPORT_MESSAGES.length} 条消息通知</span>
         )}
       </div>
 
-      {/* 一级分类：报告通知 / 告警消息 */}
+      {/* 一级分类：消息通知 / 告警消息 */}
       <div className="px-4 pt-1 pb-2">
         <div className="grid grid-cols-2 rounded-xl bg-white border border-gray-100 p-1">
           {(
             [
-              { key: 'report', label: '报告通知', icon: Inbox, count: REPORT_MESSAGES.length, dot: unreadReports > 0 },
+              { key: 'report', label: '消息通知', icon: Inbox, count: REPORT_MESSAGES.length, dot: unreadReports > 0 },
               { key: 'alarm', label: '告警消息', icon: AlertTriangle, count: ALARM_MESSAGES.length, dot: false },
             ] as const
           ).map((c) => {
@@ -235,7 +237,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.18 }}
         >
-          {/* ==================== 报告通知 ==================== */}
+          {/* ==================== 消息通知 ==================== */}
           {category === 'report' && (
             <div className="px-4 pb-6 pt-1 space-y-2.5">
               {REPORT_MESSAGES.map((m) => (
