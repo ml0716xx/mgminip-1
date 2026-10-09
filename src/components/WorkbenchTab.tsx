@@ -4,8 +4,18 @@
  */
 
 import React from 'react';
-import { Sliders, Shield, Smartphone, RefreshCw, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Sliders,
+  Shield,
+  Smartphone,
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  BrainCircuit,
+  Sparkles,
+} from 'lucide-react';
 import { motion } from 'motion/react';
+import { AiActivationStatus, AI_STATUS_META } from '../data/overviewData';
 
 interface WorkbenchTabProps {
   pvCurtailmentView: boolean;
@@ -14,6 +24,8 @@ interface WorkbenchTabProps {
   setStationName: (name: string) => void;
   phoneMode: boolean;
   setPhoneMode: (mode: boolean) => void;
+  aiStatus: AiActivationStatus;
+  setAiStatus: (status: AiActivationStatus) => void;
 }
 
 export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
@@ -23,6 +35,8 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
   setStationName,
   phoneMode,
   setPhoneMode,
+  aiStatus,
+  setAiStatus,
 }) => {
   const stations = [
     '常州好迪机械有限公司',
@@ -99,7 +113,74 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
         </div>
       </div>
 
-      {/* 2. 虚拟电站切换 */}
+      {/* 2. AI 策略开通状态（三态，联动策略运行报告 / 经营分析报告） */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-3">
+        <div className="flex items-center gap-2">
+          <BrainCircuit className="w-4 h-4 text-emerald-500" />
+          <h4 className="text-xs font-bold text-gray-900">AI 策略开通状态</h4>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {(['not_activated', 'trial', 'activated'] as AiActivationStatus[]).map((s) => {
+            const meta = AI_STATUS_META[s];
+            const active = aiStatus === s;
+            return (
+              <button
+                key={s}
+                id={`btn_ai_status_${s}`}
+                onClick={() => setAiStatus(s)}
+                className={`py-2.5 rounded-xl text-[11px] font-black border transition-all flex flex-col items-center gap-1 ${
+                  active
+                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-700 shadow-xs'
+                    : 'border-gray-100 bg-gray-50 text-gray-500'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${active ? meta.dotClass : 'bg-gray-300'}`} />
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-3 rounded-xl text-[10px] leading-relaxed bg-gray-50 border border-gray-100">
+          {aiStatus === 'not_activated' && (
+            <div className="text-gray-600 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-gray-700">未开通：</span>
+                <p className="text-gray-500 mt-0.5">
+                  策略运行报告中的<b>限电止损（增值特性）</b>以锁定态展示，仅提示「去开通」；
+                  经营分析报告的 AI 策略章节展示能力预览与开通引导。
+                </p>
+              </div>
+            </div>
+          )}
+          {aiStatus === 'trial' && (
+            <div className="text-amber-700 bg-amber-50/60 border border-amber-100 p-2 rounded-lg flex items-start gap-2 -m-1.5">
+              <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">试运行：</span>
+                <p className="text-amber-800/80 mt-0.5">
+                  限电止损与 AI 收益按<b>仿真估算值</b>展示，并统一附加「估算」标注与琥珀徽标。
+                </p>
+              </div>
+            </div>
+          )}
+          {aiStatus === 'activated' && (
+            <div className="text-emerald-700 bg-emerald-50/50 border border-emerald-100 p-2 rounded-lg flex items-start gap-2 -m-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">正式运行：</span>
+                <p className="text-gray-600 mt-0.5">
+                  限电止损增值特性全量展示（含止损电量、止损金额与逐日穿透），AI 收益按实际结算口径统计。
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. 虚拟电站切换 */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-3">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-sky-500" />
@@ -125,7 +206,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
         </div>
       </div>
 
-      {/* 3. 视图容器选择 */}
+      {/* 4. 视图容器选择 */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-3">
         <div className="flex items-center gap-2">
           <Smartphone className="w-4 h-4 text-purple-500" />

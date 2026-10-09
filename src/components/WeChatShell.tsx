@@ -6,17 +6,15 @@
 import React from 'react';
 import { ActiveTab } from '../types';
 import {
-  Compass,
-  ShieldAlert,
-  Grid3X3,
+  Home,
+  Box,
   MessageSquare,
-  Settings,
+  LayoutGrid,
   Wifi,
   Battery,
   Signal,
   MoreHorizontal,
   Circle,
-  HelpCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -45,17 +43,17 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
   }
 
   const tabs: TabItem[] = [
-    { id: 'overview', name: '概览', icon: Compass },
-    { id: 'features', name: '功能', icon: Grid3X3 },
-    { id: 'messages', name: '消息', icon: MessageSquare, badge: 1 },
-    { id: 'workbench', name: '工作台', icon: Settings },
+    { id: 'overview', name: '概览', icon: Home },
+    { id: 'features', name: '功能', icon: Box },
+    { id: 'messages', name: '消息', icon: MessageSquare, badge: 2 },
+    { id: 'workbench', name: '工作台', icon: LayoutGrid },
   ];
 
   const headerTitle = {
-    overview: '能量中心',
-    features: '功能菜单',
-    messages: '通知中心',
-    workbench: '系统设置',
+    overview: '概览',
+    features: '功能',
+    messages: '消息',
+    workbench: '工作台',
   }[activeTab];
 
   const content = (
@@ -63,13 +61,13 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
       {/* 1. iOS Status Bar (Visible in phoneMode) */}
       {phoneMode && (
         <div className="bg-white px-5 pt-3 pb-1 flex items-center justify-between text-[11px] font-bold text-gray-900 font-sans z-30 select-none">
-          <span>13:11</span>
+          <span>15:09</span>
           <div className="flex items-center gap-1.5">
             <Signal className="w-3.5 h-3.5 text-gray-900" />
             <span className="text-[9px] uppercase tracking-wider">5G</span>
             <Wifi className="w-3.5 h-3.5 text-gray-900" />
             <div className="flex items-center gap-0.5">
-              <span className="text-[9px] font-mono">86%</span>
+              <span className="text-[9px] font-mono">94%</span>
               <Battery className="w-4 h-4" />
             </div>
           </div>

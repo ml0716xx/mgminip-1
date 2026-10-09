@@ -12,24 +12,38 @@ import { MessagesTab } from './components/MessagesTab';
 import { WorkbenchTab } from './components/WorkbenchTab';
 import { ReportPage } from './components/ReportPage';
 import { ModePage } from './components/ModePage';
+import { BizReportPage } from './components/BizReportPage';
+import { TianyingSimPage } from './components/TianyingSimPage';
+import { AiActivationStatus } from './data/overviewData';
 import { motion, AnimatePresence } from 'motion/react';
-import { Info, Sparkles, X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
+
+type FullScreenPage = 'mode' | 'report' | 'biz' | 'sim' | null;
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('features'); // Features tab default to match screenshot!
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [pvCurtailmentView, setPvCurtailmentView] = useState<boolean>(true); // Default has permission (有权限)
   const [stationName, setStationName] = useState<string>('常州好迪机械有限公司');
   const [phoneMode, setPhoneMode] = useState<boolean>(true); // Elegant mobile simulation default
-  const [activeReportScreen, setActiveReportScreen] = useState<boolean>(false);
-  const [activeModeScreen, setActiveModeScreen] = useState<boolean>(false);
+  const [fullScreen, setFullScreen] = useState<FullScreenPage>(null);
+  const [aiStatus, setAiStatus] = useState<AiActivationStatus>('activated');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
 
   // Handle Menu Clicking
   const handleSelectFeature = (featureId: string) => {
     if (featureId === 'strategy_report') {
-      setActiveReportScreen(true);
+      setFullScreen('report');
     } else if (featureId === 'operating_mode') {
-      setActiveModeScreen(true);
+      setFullScreen('mode');
+    } else if (featureId === 'business_report') {
+      setFullScreen('biz');
+    } else if (featureId === 'tianying_sim') {
+      setFullScreen('sim');
     } else {
       // Elegant micro toast notification for unimplemented features
       const names: Record<string, string> = {
@@ -37,13 +51,16 @@ export default function App() {
         event_alarm: '事件分析系统',
         strategy_run: '实时策略调控',
         schedule_manage: '值班排班配置',
-        business_report: '月度经营报告',
       };
-      setToastMessage(`「${names[featureId] || '该功能'}」正在紧密研发中，敬请期待！`);
-      setTimeout(() => {
-        setToastMessage(null);
-      }, 2500);
+      showToast(`「${names[featureId] || '该功能'}」正在紧密研发中，敬请期待！`);
     }
+  };
+
+  // 消息页报告推送 → 打开对应报告
+  const handleOpenReport = (target: 'tianying_sim' | 'business_report' | 'strategy_report') => {
+    if (target === 'tianying_sim') setFullScreen('sim');
+    else if (target === 'business_report') setFullScreen('biz');
+    else setFullScreen('report');
   };
 
   const renderActiveTab = () => {
@@ -51,14 +68,9 @@ export default function App() {
       case 'overview':
         return <OverviewTab />;
       case 'features':
-        return (
-          <FeaturesTab
-            onSelectFeature={handleSelectFeature}
-            stationName={stationName}
-          />
-        );
+        return <FeaturesTab onSelectFeature={handleSelectFeature} stationName={stationName} />;
       case 'messages':
-        return <MessagesTab />;
+        return <MessagesTab onOpenReport={handleOpenReport} />;
       case 'workbench':
         return (
           <WorkbenchTab
@@ -68,11 +80,63 @@ export default function App() {
             setStationName={setStationName}
             phoneMode={phoneMode}
             setPhoneMode={setPhoneMode}
+            aiStatus={aiStatus}
+            setAiStatus={setAiStatus}
           />
         );
       default:
         return null;
     }
+  };
+
+  // 全屏页共用的手机壳样式
+  const shellClass = phoneMode
+    ? 'relative mx-auto w-[395px] h-[820px] bg-slate-900 rounded-[50px] p-3.5 shadow-2xl border-4 border-slate-800 shrink-0'
+    : 'w-full max-w-[420px] h-[780px] bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100';
+
+  const renderFullScreenPage = (page: Exclude<FullScreenPage, null>) => {
+    const inner = (() => {
+      switch (page) {
+        case 'mode':
+          return <ModePage onBack={() => setFullScreen(null)} />;
+        case 'report':
+          return (
+            <ReportPage
+              onBack={() => setFullScreen(null)}
+              pvCurtailmentView={pvCurtailmentView}
+              aiStatus={aiStatus}
+            />
+          );
+        case 'biz':
+          return <BizReportPage onBack={() => setFullScreen(null)} aiStatus={aiStatus} />;
+        case 'sim':
+          return (
+            <TianyingSimPage
+              onBack={() => setFullScreen(null)}
+              onOpenBizReport={() => setFullScreen('biz')}
+            />
+          );
+      }
+    })();
+
+    return (
+      <motion.div
+        key={page}
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 50 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 240 }}
+        className={shellClass}
+      >
+        {phoneMode ? (
+          <div className="w-full h-full bg-white rounded-[38px] overflow-hidden relative shadow-inner border border-slate-950 flex flex-col pt-5">
+            {inner}
+          </div>
+        ) : (
+          <div className="w-full h-full bg-white flex flex-col">{inner}</div>
+        )}
+      </motion.div>
+    );
   };
 
   return (
@@ -85,28 +149,9 @@ export default function App() {
       {/* Main Orcherstrating Container */}
       <div className="relative z-10 w-full flex items-center justify-center">
         <AnimatePresence mode="wait">
-          {activeModeScreen ? (
-            // Full Screen Mode Management page (same phone-shell treatment as report)
-            <motion.div
-              key="mode"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 50 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 240 }}
-              className={phoneMode ? 'relative mx-auto w-[395px] h-[820px] bg-slate-900 rounded-[50px] p-3.5 shadow-2xl border-4 border-slate-800 shrink-0' : 'w-full max-w-[420px] h-[780px] bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100'}
-            >
-              {phoneMode ? (
-                <div className="w-full h-full bg-white rounded-[38px] overflow-hidden relative shadow-inner border border-slate-950 flex flex-col pt-5">
-                  <ModePage onBack={() => setActiveModeScreen(false)} />
-                </div>
-              ) : (
-                <div className="w-full h-full bg-white flex flex-col">
-                  <ModePage onBack={() => setActiveModeScreen(false)} />
-                </div>
-              )}
-            </motion.div>
-          ) : !activeReportScreen ? (
-            // Tab Screen with WeChat Bezel shell
+          {fullScreen ? (
+            renderFullScreenPage(fullScreen)
+          ) : (
             <motion.div
               key="shell"
               initial={{ opacity: 0, scale: 0.98 }}
@@ -122,33 +167,6 @@ export default function App() {
               >
                 {renderActiveTab()}
               </WeChatShell>
-            </motion.div>
-          ) : (
-            // Full Screen sliding Strategy Operation Report (slides over the phone frame beautifully if phoneMode is true, or fits screen cleanly!)
-            <motion.div
-              key="report"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 50 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 240 }}
-              className={phoneMode ? 'relative mx-auto w-[395px] h-[820px] bg-slate-900 rounded-[50px] p-3.5 shadow-2xl border-4 border-slate-800 shrink-0' : 'w-full max-w-[420px] h-[780px] bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100'}
-            >
-              {phoneMode ? (
-                // Device physical bezel cutout inner box for report page
-                <div className="w-full h-full bg-white rounded-[38px] overflow-hidden relative shadow-inner border border-slate-950 flex flex-col pt-5">
-                  <ReportPage
-                    onBack={() => setActiveReportScreen(false)}
-                    pvCurtailmentView={pvCurtailmentView}
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-full bg-white flex flex-col">
-                  <ReportPage
-                    onBack={() => setActiveReportScreen(false)}
-                    pvCurtailmentView={pvCurtailmentView}
-                  />
-                </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -167,10 +185,7 @@ export default function App() {
               <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse shrink-0" />
               <span className="font-semibold">{toastMessage}</span>
             </div>
-            <button
-              onClick={() => setToastMessage(null)}
-              className="text-gray-400"
-            >
+            <button onClick={() => setToastMessage(null)} className="text-gray-400">
               <X className="w-3.5 h-3.5" />
             </button>
           </motion.div>

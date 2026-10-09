@@ -19,17 +19,30 @@ import {
   Sun,
   Zap,
   Sparkles,
+  Lock,
+  ArrowRight,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { AiActivationStatus } from '../data/overviewData';
 
 interface ReportPageProps {
   onBack: () => void;
   pvCurtailmentView?: boolean;
+  /** AI 策略开通状态：未开通 / 试运行 / 正式运行（影响限电止损增值特性展示） */
+  aiStatus?: AiActivationStatus;
 }
 
-export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentView = true }) => {
+export const ReportPage: React.FC<ReportPageProps> = ({
+  onBack,
+  pvCurtailmentView = true,
+  aiStatus = 'activated',
+}) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('2026年07月');
   const [loading, setLoading] = useState<boolean>(false);
+
+  // 开通状态三态：未开通（增值特性锁定）/ 试运行（估算）/ 正式运行（全量）
+  const isLocked = aiStatus === 'not_activated';
+  const isTrial = aiStatus === 'trial';
 
   useEffect(() => {
     setLoading(true);
@@ -57,7 +70,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentVie
   const pvConsumptionBaseline = s ? s.solarAbsorptionBaseRate : 0;       // 基准消纳率
   const pvConsumptionGain = s ? Math.round(s.aiTotalRevenue * 0.33) : 0; // 消纳率提升收益
   const pvToStorageGain = s ? Math.round(s.aiTotalRevenue * 0.255) : 0;  // 光伏入储电量提升收益
-  const pvCurtailmentGain = s ? s.stopLossRevenue : 0;                   // 限电止损金额
+  const pvCurtailmentGain = s ? (isLocked ? 0 : s.stopLossRevenue) : 0;  // 限电止损金额（增值特性，未开通时为 0）
   const pvTotalRevenue = pvConsumptionGain + pvToStorageGain + pvCurtailmentGain;
 
   const essUtilRate = 97.2;
@@ -269,22 +282,58 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentVie
                 ))}
               </div>
 
-              {/* 1.5 限电止损 */}
+              {/* 1.5 限电止损（AI 增值特性 · 受开通状态控制） */}
               <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-600">限电止损</span>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-base font-black text-slate-800 font-mono">{totalCurtailedEnergy.toFixed(1)}</span>
-                      <span className="text-[9px] font-bold text-slate-400">kWh 止损电量</span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-600">限电止损</span>
+                      {/* 增值特性单独标记（区别于普通 AI 策略收益） */}
+                      {isLocked ? (
+                        <span className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">
+                          <Lock className="w-2.5 h-2.5" />
+                          增值特性
+                        </span>
+                      ) : (
+                        <span
+                          className={`flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${
+                            isTrial
+                              ? 'text-amber-600 bg-amber-50 border-amber-200'
+                              : 'text-amber-700 bg-gradient-to-r from-amber-100 to-orange-100 border-amber-200'
+                          }`}
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                          增值特性{isTrial ? ' · 估算' : ''}
+                        </span>
+                      )}
                     </div>
+                    {isLocked ? (
+                      <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-relaxed">
+                        开通 AI 策略后可查看限电止损电量与止损金额
+                      </p>
+                    ) : (
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-black text-slate-800 font-mono">
+                          {totalCurtailedEnergy.toFixed(1)}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400">kWh 止损电量</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                      +¥{pvCurtailmentGain.toLocaleString()}
-                    </span>
-                    <span className="text-[8px] text-slate-400">日均减亏 +¥{avgCurtailmentSavedDaily}/天</span>
-                  </div>
+                  {isLocked ? (
+                    <button className="flex items-center gap-0.5 text-[9px] font-black text-white bg-emerald-500 px-2 py-1 rounded-lg shrink-0 active:scale-95 transition-transform">
+                      去开通
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  ) : (
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                        +¥{pvCurtailmentGain.toLocaleString()}
+                      </span>
+                      <span className="text-[8px] text-slate-400">日均减亏 +¥{avgCurtailmentSavedDaily}/天</span>
+                      {isTrial && <span className="text-[8px] text-amber-600 font-black">估算值</span>}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -400,7 +449,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onBack, pvCurtailmentVie
             <RevenueComparisonChart report={reportData} />
             <PvSelfConsumptionComparisonChart report={reportData} />
             {pvCurtailmentView && (
-              <CurtailmentStopLossChart report={reportData} />
+              <CurtailmentStopLossChart report={reportData} aiStatus={aiStatus} />
             )}
             <StorageComparisonChart report={reportData} />
             <EssPriceSpreadChart report={reportData} />

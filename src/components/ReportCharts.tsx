@@ -17,10 +17,13 @@ import {
   LabelList,
 } from 'recharts';
 import { motion } from 'motion/react';
-import { Maximize2, X } from 'lucide-react';
+import { Maximize2, X, Sparkles, Lock, ArrowRight } from 'lucide-react';
+import { AiActivationStatus } from '../data/overviewData';
 
 interface ChartProps {
   report: MonthReport;
+  /** AI 策略开通状态：未开通 / 试运行 / 正式运行 */
+  aiStatus?: AiActivationStatus;
 }
 
 // 拖拽刚结束的时间戳（用于抑制拖拽后的误触发点击）
@@ -146,18 +149,21 @@ interface ChartCardProps {
   accentClass: string;
   title: string;
   badge: string;
+  /** 额外的强调徽标（如「增值特性」单独标记） */
+  extraBadge?: React.ReactNode;
   legends: { color: string; label: string; dashed?: boolean }[];
   onOpenFullscreen?: () => void;
   children: React.ReactNode;
 }
 
-const SwipeChartCard: React.FC<ChartCardProps> = ({ accentClass, title, badge, legends, onOpenFullscreen, children }) => (
+const SwipeChartCard: React.FC<ChartCardProps> = ({ accentClass, title, badge, extraBadge, legends, onOpenFullscreen, children }) => (
   <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs">
     {/* Header */}
     <div className="flex items-center justify-between mb-2.5">
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={`w-2.5 h-4 ${accentClass} rounded-xs shrink-0`} />
         <h3 className="text-xs font-black text-slate-800 tracking-tight truncate">{title}</h3>
+        {extraBadge}
       </div>
       <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-slate-50 text-slate-500 border border-slate-100 rounded-full shrink-0">
         {badge}
@@ -697,10 +703,14 @@ export const EssPriceSpreadChart: React.FC<ChartProps> = ({ report }) => {
 };
 
 // ==================== CHART 5: 光伏限电止损 ====================
-export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
+export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report, aiStatus = 'activated' }) => {
   const { selectedDay, handleChartClick } = useDaySelect();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const daily = report.dailyList;
+
+  // 开通状态三态：未开通（锁定）/ 试运行（估算）/ 正式运行（全量）
+  const isLocked = aiStatus === 'not_activated';
+  const isTrial = aiStatus === 'trial';
 
   const buildData = (days: DailyData[]) =>
     days
@@ -740,41 +750,97 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report }) => {
     </DragScrollArea>
   );
 
+  // 「增值特性」单独标记（区别于普通 AI 策略收益）
+  const premiumBadge = isLocked ? (
+    <span className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full shrink-0">
+      <Lock className="w-2.5 h-2.5" />
+      增值特性
+    </span>
+  ) : (
+    <span
+      className={`flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full border shrink-0 ${
+        isTrial
+          ? 'text-amber-600 bg-amber-50 border-amber-200'
+          : 'text-amber-700 bg-gradient-to-r from-amber-100 to-orange-100 border-amber-200'
+      }`}
+    >
+      <Sparkles className="w-2.5 h-2.5" />
+      增值特性{isTrial ? ' · 估算' : ''}
+    </span>
+  );
+
   return (
     <>
       <SwipeChartCard
-        accentClass="bg-rose-500"
+        accentClass={isLocked ? 'bg-slate-300' : 'bg-rose-500'}
         title="微电网限电调控减亏"
-        badge="止损电量与金额"
-        legends={[
-          { color: '#F43F5E', label: '止损电量 (kWh)' },
-          { color: '#10B981', label: '止损金额 (¥)' },
-        ]}
-        onOpenFullscreen={() => setIsFullscreen(true)}
+        badge={isLocked ? '待开通' : isTrial ? '试运行估算' : '止损电量与金额'}
+        extraBadge={premiumBadge}
+        legends={
+          isLocked
+            ? []
+            : [
+                { color: '#F43F5E', label: '止损电量 (kWh)' },
+                { color: '#10B981', label: '止损金额 (¥)' },
+              ]
+        }
+        onOpenFullscreen={isLocked ? undefined : () => setIsFullscreen(true)}
       >
-        {buildChart(buildData(daily), 'h-[200px]')}
-        {sd ? (
-          <DayDetailPanel
-            title={`${sd.day}日 · 限电止损`}
-            aiRunning={sd.isAiRunning}
-            rows={[
-              { label: '止损电量', value: `${sd.curtailmentEnergy} kWh`, strong: true, colorClass: 'text-rose-500' },
-              {
-                label: '止损金额',
-                value: `${sd.stopLossRevenue >= 0 ? '+' : ''}¥${sd.stopLossRevenue.toLocaleString()}`,
-                strong: true,
-                colorClass: sd.stopLossRevenue >= 0 ? 'text-emerald-600' : 'text-red-500',
-              },
-              { label: '光伏自发自用', value: `${sd.pvSelfConsumption} kWh` },
-              { label: '光伏上网电量', value: `${sd.pvGridFeeding} kWh` },
-              { label: '储能充电消纳', value: `${sd.chargeEnergy} kWh` },
-            ]}
-          />
+        {isLocked ? (
+          /* ---------- 未开通：增值特性锁定 ---------- */
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+            <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-400">
+              <Lock className="w-5 h-5" />
+            </div>
+            <p className="text-[11px] font-black text-slate-700 mt-2.5">限电止损为 AI 策略增值特性</p>
+            <p className="text-[9px] text-gray-500 leading-relaxed mt-1.5">
+              开通 AI 策略后，负电价与限电指令时段将自动执行光伏入储与偏差避险，
+              该部分收益单独统计并在此展示。
+            </p>
+            <button className="mt-3 w-full py-2 rounded-xl bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center gap-1 active:scale-[0.99] transition-transform">
+              联系开通增值特性
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         ) : (
-          <SelectHint />
+          /* ---------- 试运行 / 正式运行：全量展示 ---------- */
+          <>
+            {isTrial && (
+              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                <span className="text-[9px] text-amber-800 font-bold leading-snug">
+                  试运行期数据为 AI 仿真估算值，正式运行后按实际结算口径统计
+                </span>
+              </div>
+            )}
+            {buildChart(buildData(daily), 'h-[200px]')}
+            {sd ? (
+              <DayDetailPanel
+                title={`${sd.day}日 · 限电止损`}
+                aiRunning={sd.isAiRunning}
+                rows={[
+                  { label: '止损电量', value: `${sd.curtailmentEnergy} kWh`, strong: true, colorClass: 'text-rose-500' },
+                  {
+                    label: '止损金额',
+                    value: `${sd.stopLossRevenue >= 0 ? '+' : ''}¥${sd.stopLossRevenue.toLocaleString()}`,
+                    strong: true,
+                    colorClass: sd.stopLossRevenue >= 0 ? 'text-emerald-600' : 'text-red-500',
+                  },
+                  { label: '光伏自发自用', value: `${sd.pvSelfConsumption} kWh` },
+                  { label: '光伏上网电量', value: `${sd.pvGridFeeding} kWh` },
+                  { label: '储能充电消纳', value: `${sd.chargeEnergy} kWh` },
+                  ...(isTrial
+                    ? [{ label: '数据口径', value: 'AI 仿真估算', colorClass: 'text-amber-600' }]
+                    : []),
+                ]}
+              />
+            ) : (
+              <SelectHint />
+            )}
+          </>
         )}
       </SwipeChartCard>
-      {isFullscreen && (
+      {isFullscreen && !isLocked && (
         <FullscreenChartModal title="微电网限电调控减亏 (全月)" subtitle={`止损电量合计 ${totalCurtail} kWh · 止损金额合计 +¥${totalSaved.toLocaleString()} · 按住拖动查看全月`} onClose={() => setIsFullscreen(false)}>
           <div className="h-full flex flex-col">
             {buildChart(buildData(allCurtailDays), 'h-full')}
