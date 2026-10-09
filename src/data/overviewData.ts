@@ -163,42 +163,4 @@ export const STATION_PERIOD: Record<PeriodType, StationPeriodData> = {
 };
 
 // ==================== 天盈 AI 仿真报告 ====================
-export interface TianyingSimulationReport {
-  id: string;
-  title: string;
-  month: string; // 报告月份
-  generatedAt: string; // 生成时间
-  baselineRevenue: number; // 基准策略收益（元）
-  aiSimRevenue: number; // AI 仿真收益（元）
-  improvement: number; // 提升收益（元）
-  improvementRate: number; // 提升幅度 %
-  aiRunningDays: number; // AI 运行天数
-  dutyHours: number; // 运行时长 h
-  absorptionRate: number; // 光伏消纳率 %
-  absorptionImprovement: number; // 消纳率提升 pp
-  perKwhCost: number; // 度电成本 元/kWh
-  perKwhSaving: number; // 度电成本下降 元/kWh
-  days: { day: number; baseline: number; aiSim: number }[]; // 日度对比（前 15 天展示）
-}
-
-export const TIANYING_REPORT: TianyingSimulationReport = {
-  id: 'tianying-sim-2026-09',
-  title: '天盈 AI 仿真报告',
-  month: '2026年09月',
-  generatedAt: '2026-10-01 08:00',
-  baselineRevenue: 152340,
-  aiSimRevenue: 175890,
-  improvement: 23550,
-  improvementRate: 15.5,
-  aiRunningDays: 30,
-  dutyHours: 720,
-  absorptionRate: 97.2,
-  absorptionImprovement: 8.9,
-  perKwhCost: 0.386,
-  perKwhSaving: 0.072,
-  days: Array.from({ length: 15 }, (_, i) => {
-    const baseline = 3800 + ((i * 53) % 11) * 260 + ((i * 29) % 7) * 90;
-    const aiSim = Math.round(baseline * (1.12 + ((i * 13) % 5) * 0.03));
-    return { day: i + 1, baseline, aiSim };
-  }),
-};
+// 报告正文与数据已迁至 src/data/tianyingSimData.ts（与 web 端 -2.0 弹窗同源），此处不再保留旧 mock。

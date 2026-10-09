@@ -97,7 +97,7 @@ const REPORT_MESSAGES: ReportMsg[] = [
     id: 101,
     title: '天盈 AI 仿真报告已生成',
     time: '今天 08:00',
-    desc: '2026年09月天盈 AI 仿真回测完成：AI 策略仿真收益 17.59 万元，较基准策略提升 15.5%，点击查看完整对比报告。',
+    desc: '2026年09月天盈 AI 仿真回测完成：AI 策略仿真总收益 69,030 元，较实际运行提升 12.8%，点击查看完整对比报告。',
     target: 'tianying_sim',
     badge: '天盈 AI',
     unread: true,
