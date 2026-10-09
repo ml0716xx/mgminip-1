@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ActiveTab } from './types';
 import { WeChatShell } from './components/WeChatShell';
 import { OverviewTab } from './components/OverviewTab';
@@ -29,9 +29,25 @@ export default function App() {
   const [aiStatus, setAiStatus] = useState<AiActivationStatus>('activated');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
+    // 连续触发时先清掉上一个定时器，避免旧 toast 的新计时把新提示提前关掉
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  /** 开通状态变更（经营报告／策略运行报告的「开通试用／开通正式」按钮、工作台演示开关） */
+  const handleAiStatusChange = (s: AiActivationStatus) => {
+    setAiStatus(s);
+    showToast(
+      s === 'trial'
+        ? '已开通 AI 策略试用（7 天全功能体验）'
+        : s === 'activated'
+        ? '已开通 AI 策略正式运行'
+        : '已切换为「未开通」状态',
+    );
   };
 
   // Handle Menu Clicking
@@ -81,7 +97,7 @@ export default function App() {
             phoneMode={phoneMode}
             setPhoneMode={setPhoneMode}
             aiStatus={aiStatus}
-            setAiStatus={setAiStatus}
+            setAiStatus={handleAiStatusChange}
           />
         );
       default:
@@ -105,10 +121,17 @@ export default function App() {
               onBack={() => setFullScreen(null)}
               pvCurtailmentView={pvCurtailmentView}
               aiStatus={aiStatus}
+              onSetAiStatus={handleAiStatusChange}
             />
           );
         case 'biz':
-          return <BizReportPage onBack={() => setFullScreen(null)} aiStatus={aiStatus} />;
+          return (
+            <BizReportPage
+              onBack={() => setFullScreen(null)}
+              aiStatus={aiStatus}
+              onSetAiStatus={handleAiStatusChange}
+            />
+          );
         case 'sim':
           return (
             <TianyingSimPage

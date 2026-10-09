@@ -20,22 +20,25 @@ import {
   Zap,
   Sparkles,
   Lock,
-  ArrowRight,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AiActivationStatus } from '../data/overviewData';
+import { AiActivationCta } from './AiActivationCta';
 
 interface ReportPageProps {
   onBack: () => void;
   pvCurtailmentView?: boolean;
   /** AI 策略开通状态：未开通 / 试运行 / 正式运行（影响限电止损增值特性展示） */
   aiStatus?: AiActivationStatus;
+  /** 开通状态变更（限电止损锁定态的「开通试用／开通正式」） */
+  onSetAiStatus?: (s: AiActivationStatus) => void;
 }
 
 export const ReportPage: React.FC<ReportPageProps> = ({
   onBack,
   pvCurtailmentView = true,
   aiStatus = 'activated',
+  onSetAiStatus,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('2026年07月');
   const [loading, setLoading] = useState<boolean>(false);
@@ -321,10 +324,15 @@ export const ReportPage: React.FC<ReportPageProps> = ({
                     )}
                   </div>
                   {isLocked ? (
-                    <button className="flex items-center gap-0.5 text-[9px] font-black text-white bg-emerald-500 px-2 py-1 rounded-lg shrink-0 active:scale-95 transition-transform">
-                      去开通
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
+                    <AiActivationCta
+                      scope="rp"
+                      size="sm"
+                      orientation="column"
+                      showHint={false}
+                      className="shrink-0"
+                      onTrial={() => onSetAiStatus?.('trial')}
+                      onActivate={() => onSetAiStatus?.('activated')}
+                    />
                   ) : (
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
@@ -449,7 +457,11 @@ export const ReportPage: React.FC<ReportPageProps> = ({
             <RevenueComparisonChart report={reportData} />
             <PvSelfConsumptionComparisonChart report={reportData} />
             {pvCurtailmentView && (
-              <CurtailmentStopLossChart report={reportData} aiStatus={aiStatus} />
+              <CurtailmentStopLossChart
+                report={reportData}
+                aiStatus={aiStatus}
+                onSetAiStatus={onSetAiStatus}
+              />
             )}
             <StorageComparisonChart report={reportData} />
             <EssPriceSpreadChart report={reportData} />

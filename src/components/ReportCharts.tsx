@@ -17,13 +17,16 @@ import {
   LabelList,
 } from 'recharts';
 import { motion } from 'motion/react';
-import { Maximize2, X, Sparkles, Lock, ArrowRight } from 'lucide-react';
+import { Maximize2, X, Sparkles, Lock } from 'lucide-react';
 import { AiActivationStatus } from '../data/overviewData';
+import { AiActivationCta, AiUpgradeCta } from './AiActivationCta';
 
 interface ChartProps {
   report: MonthReport;
   /** AI 策略开通状态：未开通 / 试运行 / 正式运行 */
   aiStatus?: AiActivationStatus;
+  /** 开通状态变更（未开通态的「开通试用／开通正式」按钮） */
+  onSetAiStatus?: (s: AiActivationStatus) => void;
 }
 
 // 拖拽刚结束的时间戳（用于抑制拖拽后的误触发点击）
@@ -703,7 +706,11 @@ export const EssPriceSpreadChart: React.FC<ChartProps> = ({ report }) => {
 };
 
 // ==================== CHART 5: 光伏限电止损 ====================
-export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report, aiStatus = 'activated' }) => {
+export const CurtailmentStopLossChart: React.FC<ChartProps> = ({
+  report,
+  aiStatus = 'activated',
+  onSetAiStatus,
+}) => {
   const { selectedDay, handleChartClick } = useDaySelect();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const daily = report.dailyList;
@@ -797,20 +804,26 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({ report, aiStatu
               开通 AI 策略后，负电价与限电指令时段将自动执行光伏入储与偏差避险，
               该部分收益单独统计并在此展示。
             </p>
-            <button className="mt-3 w-full py-2 rounded-xl bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center gap-1 active:scale-[0.99] transition-transform">
-              联系开通增值特性
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {/* 开通入口：试用 / 正式 */}
+            <AiActivationCta
+              scope="rpchart"
+              className="mt-3"
+              onTrial={() => onSetAiStatus?.('trial')}
+              onActivate={() => onSetAiStatus?.('activated')}
+            />
           </div>
         ) : (
           /* ---------- 试运行 / 正式运行：全量展示 ---------- */
           <>
             {isTrial && (
-              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
-                <span className="text-[9px] text-amber-800 font-bold leading-snug">
-                  试运行期数据为 AI 仿真估算值，正式运行后按实际结算口径统计
-                </span>
+              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-2">
+                <div className="flex items-start gap-1.5">
+                  <Sparkles className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                  <span className="text-[9px] text-amber-800 font-bold leading-snug">
+                    试运行期数据为 AI 仿真估算值，正式运行后按实际结算口径统计
+                  </span>
+                </div>
+                <AiUpgradeCta scope="rpchart" size="sm" className="mt-1.5 w-full" onClick={() => onSetAiStatus?.('activated')} />
               </div>
             )}
             {buildChart(buildData(daily), 'h-[200px]')}

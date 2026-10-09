@@ -149,8 +149,9 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
               <div>
                 <span className="font-bold text-gray-700">未开通：</span>
                 <p className="text-gray-500 mt-0.5">
-                  策略运行报告中的<b>限电止损（增值特性）</b>以锁定态展示，仅提示「去开通」；
-                  经营分析报告的 AI 策略章节展示能力预览与开通引导。
+                  策略运行报告中的<b>限电止损（增值特性）</b>以锁定态展示，并提供
+                  <b>「开通试用」/「开通正式」</b>两个入口；经营分析报告的 AI 策略章节展示
+                  能力预览与同样的开通入口。
                 </p>
               </div>
             </div>

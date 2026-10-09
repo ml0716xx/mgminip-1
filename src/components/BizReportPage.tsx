@@ -41,7 +41,6 @@ import {
   BrainCircuit,
   Sparkles,
   Lock,
-  ArrowRight,
   TrendingUp,
   BadgeCheck,
   Timer,
@@ -50,10 +49,13 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { BUSINESS_REPORT, AI_STRATEGY_CONTENT } from '../data/businessReportData';
 import { AiActivationStatus, AI_STATUS_META } from '../data/overviewData';
+import { AiActivationCta, AiUpgradeCta } from './AiActivationCta';
 
 interface BizReportPageProps {
   onBack: () => void;
   aiStatus?: AiActivationStatus;
+  /** 受控：由父级接管开通状态（App 持有，便于跨页面联动与提示） */
+  onSetAiStatus?: (s: AiActivationStatus) => void;
 }
 
 // ==================== 通用件 ====================
@@ -197,10 +199,13 @@ const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: Ai
                   开通后可获得 AI 智能全景协同调度：基于分时电价与光伏出力预测自动生成充放电策略，
                   在负电价与限电指令下主动避险、自动增收益。
                 </p>
-                <button className="mt-3 w-full py-2 rounded-xl bg-emerald-500 text-white text-[11px] font-black flex items-center justify-center gap-1 active:scale-[0.99] transition-transform">
-                  联系开通 AI 策略
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                {/* 开通入口：试用 / 正式 */}
+                <AiActivationCta
+                  scope="biz"
+                  className="mt-3"
+                  onTrial={() => onSwitch('trial')}
+                  onActivate={() => onSwitch('activated')}
+                />
               </div>
               {/* 能力预览（灰态） */}
               <div className="grid grid-cols-2 gap-2 mt-3">
@@ -268,6 +273,9 @@ const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: Ai
                   <span className="text-[8px] text-amber-500 font-bold block">估算</span>
                 </div>
               </div>
+
+              {/* 试运行 → 正式运行 */}
+              <AiUpgradeCta scope="biz" className="mt-2.5" onClick={() => onSwitch('activated')} />
             </div>
           )}
 
@@ -345,8 +353,11 @@ const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: Ai
 };
 
 // ==================== 主页面 ====================
-export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus = 'activated' }) => {
-  const [status, setStatus] = useState<AiActivationStatus>(aiStatus);
+export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus = 'activated', onSetAiStatus }) => {
+  // 受控（父级持有）优先，否则退化为页内本地状态
+  const [localStatus, setLocalStatus] = useState<AiActivationStatus>(aiStatus);
+  const status = onSetAiStatus ? aiStatus : localStatus;
+  const setStatus = onSetAiStatus ?? setLocalStatus;
   const r = BUSINESS_REPORT;
   const days = r.days;
 
