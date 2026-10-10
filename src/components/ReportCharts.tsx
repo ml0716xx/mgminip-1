@@ -19,7 +19,7 @@ import {
 import { motion } from 'motion/react';
 import { Maximize2, X, Sparkles, Lock } from 'lucide-react';
 import { AiActivationStatus } from '../data/overviewData';
-import { AiActivationCta, AiUpgradeCta } from './AiActivationCta';
+import { AiActivationCta } from './AiActivationCta';
 
 interface ChartProps {
   report: MonthReport;
@@ -814,18 +814,8 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({
           </div>
         ) : (
           /* ---------- 试运行 / 正式运行：全量展示 ---------- */
+          /* 试运行口径提示已上移到整份报告的顶部横幅（ReportPage #banner_trial_notice），此处不再重复 */
           <>
-            {isTrial && (
-              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-2">
-                <div className="flex items-start gap-1.5">
-                  <Sparkles className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                  <span className="text-[9px] text-amber-800 font-bold leading-snug">
-                    试运行期数据为 AI 仿真估算值，正式运行后按实际结算口径统计
-                  </span>
-                </div>
-                <AiUpgradeCta scope="rpchart" size="sm" className="mt-1.5 w-full" onClick={() => onSetAiStatus?.('activated')} />
-              </div>
-            )}
             {buildChart(buildData(daily), 'h-[200px]')}
             {sd ? (
               <DayDetailPanel

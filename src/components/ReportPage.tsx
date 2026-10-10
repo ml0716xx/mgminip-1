@@ -20,10 +20,11 @@ import {
   Zap,
   Sparkles,
   Lock,
+  Timer,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AiActivationStatus } from '../data/overviewData';
-import { AiActivationCta } from './AiActivationCta';
+import { AiActivationCta, AiUpgradeCta } from './AiActivationCta';
 
 interface ReportPageProps {
   onBack: () => void;
@@ -161,6 +162,31 @@ export const ReportPage: React.FC<ReportPageProps> = ({
           </div>
         ) : reportData ? (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+
+            {/* 1. 试运行期报告级提示（作用于整份报告，不局限于限电止损板块） */}
+            {isTrial && (
+              <div
+                id="banner_trial_notice"
+                className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/70 px-3.5 py-3"
+              >
+                <div className="flex items-start gap-2">
+                  <Timer className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-black text-amber-800">当前处于试运行期</div>
+                    <p className="text-[9px] text-amber-800/85 font-bold leading-relaxed mt-1">
+                      本报告内全部收益与优化指标均为 <b>AI 仿真估算值</b>，
+                      正式运行后按实际结算口径统计。
+                    </p>
+                  </div>
+                </div>
+                <AiUpgradeCta
+                  scope="rptop"
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={() => onSetAiStatus?.('activated')}
+                />
+              </div>
+            )}
 
             {/* 2. 全月综合运行总收益 HUB（-2.0 口径） */}
             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs space-y-3">
