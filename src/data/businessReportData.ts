@@ -4,6 +4,7 @@
  */
 
 import { AiActivationStatus } from './overviewData';
+import { STATION } from './stationData';
 
 // ==================== 经营分析报告（按线上小程序截图结构还原） ====================
 // 章节结构：
@@ -102,8 +103,8 @@ export const BUSINESS_REPORT: BusinessReportData = {
   month: '2026年09月',
   periodStart: '2026-09-01',
   periodEnd: '2026-09-30',
-  station: '1#站',
-  site: '站点位于山东省烟台市蓬莱区。',
+  station: STATION.name,
+  site: STATION.siteText,
   pvCapacity: 1.6,
   inverterCount: 1,
   essCapacity: 1.04,

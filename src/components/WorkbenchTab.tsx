@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AiActivationStatus, AI_STATUS_META } from '../data/overviewData';
+import { DEMO_STATIONS } from '../data/stationData';
 
 interface WorkbenchTabProps {
   pvCurtailmentView: boolean;
@@ -38,11 +39,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({
   aiStatus,
   setAiStatus,
 }) => {
-  const stations = [
-    '常州好迪机械有限公司',
-    '常州智能电网示范区',
-    '常州储能科技创新园',
-  ];
+  const stations = [...DEMO_STATIONS];
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">

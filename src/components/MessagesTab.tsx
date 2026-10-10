@@ -21,6 +21,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { STATION } from '../data/stationData';
 
 // ==================== 数据类型 ====================
 interface AlarmMsg {
@@ -145,7 +146,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
     <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
       {/* 站点行 + 筛选（筛选仅作用于告警） */}
       <div className="px-4 pt-3 pb-1 flex items-center justify-between relative">
-        <span className="text-[13px] font-black text-gray-900">1#站</span>
+        <span className="text-[13px] font-black text-gray-900">{STATION.short}</span>
         {category === 'alarm' ? (
           <div className="relative">
             <button

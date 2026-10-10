@@ -15,6 +15,7 @@ import { ModePage } from './components/ModePage';
 import { BizReportPage } from './components/BizReportPage';
 import { TianyingSimPage } from './components/TianyingSimPage';
 import { AiActivationStatus } from './data/overviewData';
+import { STATION } from './data/stationData';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, X } from 'lucide-react';
 
@@ -23,7 +24,7 @@ type FullScreenPage = 'mode' | 'report' | 'biz' | 'sim' | null;
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [pvCurtailmentView, setPvCurtailmentView] = useState<boolean>(true); // Default has permission (有权限)
-  const [stationName, setStationName] = useState<string>('常州好迪机械有限公司');
+  const [stationName, setStationName] = useState<string>(STATION.name);
   const [phoneMode, setPhoneMode] = useState<boolean>(true); // Elegant mobile simulation default
   const [fullScreen, setFullScreen] = useState<FullScreenPage>(null);
   const [aiStatus, setAiStatus] = useState<AiActivationStatus>('activated');

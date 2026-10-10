@@ -44,6 +44,7 @@ import {
   ESS_PERIOD,
   STATION_PERIOD,
 } from '../data/overviewData';
+import { STATION } from '../data/stationData';
 
 type StationTab = 'micro' | 'grid' | 'pv' | 'ess' | 'ev';
 
@@ -704,7 +705,7 @@ export const OverviewTab: React.FC = () => {
     <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
       {/* 站点栏 */}
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
-        <span className="text-[13px] font-black text-gray-900">1#站</span>
+        <span className="text-[13px] font-black text-gray-900">{STATION.short}</span>
         <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
           <Wifi className="w-3.5 h-3.5" />
           在线

@@ -50,6 +50,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { BUSINESS_REPORT, AI_STRATEGY_CONTENT } from '../data/businessReportData';
 import { AiActivationStatus, AI_STATUS_META } from '../data/overviewData';
 import { AiActivationCta, AiUpgradeCta } from './AiActivationCta';
+import { STATION } from '../data/stationData';
 
 interface BizReportPageProps {
   onBack: () => void;
@@ -434,7 +435,7 @@ export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus =
               <span className="text-[10px] font-black text-white bg-white/20 px-2 py-0.5 rounded-full">
                 {r.station}
               </span>
-              <span className="text-[10px] font-bold text-white/90">孚瑞克森汽车部件有限公司</span>
+              <span className="text-[10px] font-bold text-white/90">{STATION.entity}</span>
             </div>
           </div>
         </div>

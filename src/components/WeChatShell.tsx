@@ -33,7 +33,8 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
   phoneMode,
   children,
 }) => {
-  const shortStation = stationName.length > 5 ? `${stationName.substring(0, 4)}...` : stationName;
+  // 站名直接完整展示，超长由样式截断（原来按前 4 字 + 「...」硬切，会把「康达新材料-1#站」砍成「康达新材...」）
+  const shortStation = stationName;
 
   interface TabItem {
     id: ActiveTab;
@@ -78,7 +79,7 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
       <div className="bg-white border-b border-gray-100/80 px-4 py-2.5 flex items-center justify-between z-30 select-none">
         {/* LeftDropdown resembling WeChat screenshot */}
         <div className="flex items-center gap-1 cursor-pointer active:opacity-85 active:scale-95 transition-all">
-          <span className="text-[12px] font-bold text-gray-700">{shortStation}</span>
+          <span className="text-[12px] font-bold text-gray-700 truncate max-w-[126px]">{shortStation}</span>
           <span className="text-[8px] text-gray-400">▼</span>
         </div>
 

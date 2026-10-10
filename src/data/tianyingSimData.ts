@@ -8,11 +8,14 @@
    结构：报告头核心结论 + 第 1 章仿真收益对比 + 第 2 章典型日分析
    ========================================================================== */
 
+import { STATION } from './stationData';
+
 /* ---------------------------- 站点与报告元信息 ---------------------------- */
+/* 站点口径取自 stationData 单一真源，与经营分析报告 / 小程序顶部完全一致 */
 export const TY_META = {
-  station: '康达新材料-1#站',
-  stationFull: '上海康达新材料 1# 站',
-  region: '上海市奉贤区',
+  station: STATION.name,
+  stationFull: `${STATION.entity} 1# 站`,
+  region: STATION.region,
   period: '2026-09',
   periodLabel: '2026年09月',
   version: 'AI 策略仿真 V1.0',
