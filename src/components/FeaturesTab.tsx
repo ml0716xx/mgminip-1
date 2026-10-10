@@ -16,8 +16,6 @@ import {
   Shield,
   CirclePlay,
   HeartPulse,
-  BrainCircuit,
-  Sparkles,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -107,22 +105,6 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
             <span className="text-xs font-bold text-gray-900 mt-3 flex items-center gap-0.5">
               策略运行报告
             </span>
-          </div>
-
-          {/* 天盈 AI 仿真报告 */}
-          <div
-            id="btn_tianying_sim"
-            className="bg-white p-4 rounded-2xl border border-teal-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer relative overflow-hidden"
-            onClick={() => onSelectFeature('tianying_sim')}
-          >
-            <span className="absolute top-1.5 right-1.5 text-[8px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-              <Sparkles className="w-2 h-2" />
-              天盈 AI
-            </span>
-            <div className="w-12 h-12 bg-gradient-to-tr from-teal-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-500/20 text-white group-active:scale-95 transition-transform">
-              <BrainCircuit className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-gray-800 mt-3">天盈 AI 仿真报告</span>
           </div>
         </div>
       </div>

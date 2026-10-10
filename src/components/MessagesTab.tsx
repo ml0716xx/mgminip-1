@@ -5,9 +5,12 @@
  * 消息页
  * 结构（两层，互不混淆）：
  *   一级：消息通知 / 告警消息  —— 两类消息并列
- *      · 消息通知：报告类推送（天盈AI仿真 / 经营分析 / 策略运行），点击直达报告详情
+ *      · 消息通知：报告推送（天盈AI仿真 / 经营分析 / 策略运行，点击直达报告详情）
+ *                 + AI 策略开通提醒 + AI 策略到期提醒
  *      · 告警消息：设备告警
  *   二级（仅告警分支内）：未恢复 / 已恢复 —— 告警的处置状态
+ *
+ * 消息通知的数据在 src/data/noticeData.ts，本组件只负责渲染。
  */
 
 import React, { useState } from 'react';
@@ -19,9 +22,13 @@ import {
   BrainCircuit,
   Inbox,
   AlertTriangle,
+  Rocket,
+  Timer,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { STATION } from '../data/stationData';
+import { NOTICE_MESSAGES, unreadNoticeCount } from '../data/noticeData';
+import type { NoticeTarget } from '../data/noticeData';
 
 // ==================== 数据类型 ====================
 interface AlarmMsg {
@@ -34,16 +41,6 @@ interface AlarmMsg {
   deviceSn: string; // 设备 SN
   occurTime: string; // 发生时间
   recoverTime: string | null; // 恢复时间（null = 未恢复）
-}
-
-interface ReportMsg {
-  id: number;
-  title: string;
-  time: string;
-  desc: string;
-  target: 'tianying_sim' | 'business_report' | 'strategy_report';
-  badge: string;
-  unread?: boolean;
 }
 
 const ALARM_MESSAGES: AlarmMsg[] = [
@@ -93,37 +90,8 @@ const ALARM_MESSAGES: AlarmMsg[] = [
   },
 ];
 
-const REPORT_MESSAGES: ReportMsg[] = [
-  {
-    id: 101,
-    title: '天盈 AI 仿真报告已生成',
-    time: '今天 08:00',
-    desc: '2026年09月天盈 AI 仿真回测完成：AI 策略仿真总收益 69,030 元，较实际运行提升 12.8%，点击查看完整对比报告。',
-    target: 'tianying_sim',
-    badge: '天盈 AI',
-    unread: true,
-  },
-  {
-    id: 102,
-    title: '9月经营分析报告已生成',
-    time: '昨天 08:30',
-    desc: '本月微网总收益 7.51 万元，光伏消纳率 74.64%，度电成本优化至 0.32 元/kWh。点击查看月度经营分析。',
-    target: 'business_report',
-    badge: '经营报告',
-    unread: true,
-  },
-  {
-    id: 103,
-    title: '7月份策略运行报告已生成',
-    time: '08-01 08:00',
-    desc: '上月度智能微网调度成效报告已汇总完毕！AI 自动运行率达 80.6%，综合避险挽回损失 ¥580。点击查看。',
-    target: 'strategy_report',
-    badge: '策略报告',
-  },
-];
-
 interface MessagesTabProps {
-  onOpenReport?: (target: ReportMsg['target']) => void;
+  onOpenReport?: (target: NoticeTarget) => void;
 }
 
 export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
@@ -140,7 +108,6 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
   const alarmList = (alarmState === 'recovered' ? recoveredAlarms : unrecoveredAlarms).filter(
     (m) => !onlyImportant || m.important,
   );
-  const unreadReports = REPORT_MESSAGES.filter((m) => m.unread).length;
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
@@ -194,7 +161,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
             </AnimatePresence>
           </div>
         ) : (
-          <span className="text-[10px] text-gray-400 font-bold">共 {REPORT_MESSAGES.length} 条消息通知</span>
+          <span className="text-[10px] text-gray-400 font-bold">共 {NOTICE_MESSAGES.length} 条消息通知</span>
         )}
       </div>
 
@@ -203,7 +170,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
         <div className="grid grid-cols-2 rounded-xl bg-white border border-gray-100 p-1">
           {(
             [
-              { key: 'report', label: '消息通知', icon: Inbox, count: REPORT_MESSAGES.length, dot: unreadReports > 0 },
+              { key: 'report', label: '消息通知', icon: Inbox, count: NOTICE_MESSAGES.length, dot: unreadNoticeCount > 0 },
               { key: 'alarm', label: '告警消息', icon: AlertTriangle, count: ALARM_MESSAGES.length, dot: false },
             ] as const
           ).map((c) => {
@@ -241,51 +208,88 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ onOpenReport }) => {
           {/* ==================== 消息通知 ==================== */}
           {category === 'report' && (
             <div className="px-4 pb-6 pt-1 space-y-2.5">
-              {REPORT_MESSAGES.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => onOpenReport?.(m.target)}
-                  className="w-full text-left bg-white rounded-2xl border border-gray-100 p-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform"
-                >
+              {NOTICE_MESSAGES.map((m) => {
+                const isReport = m.kind === 'report';
+                const isExpiry = m.kind === 'expiry';
+                const t = m.target;
+
+                // 图标底色：报告按类型分色，开通走绿色，到期走琥珀
+                const iconClass = isReport
+                  ? t === 'tianying_sim'
+                    ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md shadow-emerald-500/20'
+                    : t === 'business_report'
+                    ? 'bg-sky-50 text-sky-600 border border-sky-100'
+                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                  : isExpiry
+                  ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                  : 'bg-emerald-50 text-emerald-600 border border-emerald-200';
+
+                const badgeClass = isReport
+                  ? t === 'tianying_sim'
+                    ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                    : t === 'business_report'
+                    ? 'text-sky-600 bg-sky-50 border-sky-200'
+                    : 'text-gray-500 bg-slate-50 border-slate-200'
+                  : isExpiry
+                  ? 'text-amber-600 bg-amber-50 border-amber-200'
+                  : 'text-emerald-600 bg-emerald-50 border-emerald-200';
+
+                const body = (
+                  <>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconClass}`}>
+                      {isReport ? (
+                        t === 'tianying_sim' ? (
+                          <BrainCircuit className="w-5 h-5" />
+                        ) : (
+                          <FileText className="w-5 h-5" />
+                        )
+                      ) : isExpiry ? (
+                        <Timer className="w-5 h-5" />
+                      ) : (
+                        <Rocket className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-gray-900 truncate">{m.title}</span>
+                        <span
+                          className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border shrink-0 ${badgeClass}`}
+                        >
+                          {m.badge}
+                        </span>
+                        {m.unread && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 animate-pulse" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-500 leading-relaxed mt-1 line-clamp-2">{m.desc}</p>
+                      <span className="text-[9px] text-gray-400 font-mono mt-1 block">{m.time}</span>
+                    </div>
+                  </>
+                );
+
+                // 报告类可点击进入报告详情；开通/到期提醒为纯通知，不带跳转
+                return isReport ? (
+                  <button
+                    key={m.id}
+                    onClick={() => onOpenReport?.(t!)}
+                    className="w-full text-left bg-white rounded-2xl border border-gray-100 p-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform"
+                  >
+                    {body}
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  </button>
+                ) : (
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      m.target === 'tianying_sim'
-                        ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md shadow-emerald-500/20'
-                        : m.target === 'business_report'
-                        ? 'bg-sky-50 text-sky-600 border border-sky-100'
-                        : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                    key={m.id}
+                    className={`bg-white rounded-2xl p-3.5 flex items-start gap-3 border ${
+                      isExpiry ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'
                     }`}
                   >
-                    {m.target === 'tianying_sim' ? (
-                      <BrainCircuit className="w-5 h-5" />
-                    ) : (
-                      <FileText className="w-5 h-5" />
-                    )}
+                    {body}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-gray-900 truncate">{m.title}</span>
-                      <span
-                        className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border shrink-0 ${
-                          m.target === 'tianying_sim'
-                            ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
-                            : m.target === 'business_report'
-                            ? 'text-sky-600 bg-sky-50 border-sky-200'
-                            : 'text-gray-500 bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        {m.badge}
-                      </span>
-                      {m.unread && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 animate-pulse" />}
-                    </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed mt-1 line-clamp-2">{m.desc}</p>
-                    <span className="text-[9px] text-gray-400 font-mono mt-1 block">{m.time}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
-                </button>
-              ))}
+                );
+              })}
               <p className="text-[9px] text-gray-400 text-center pt-1">
-                报告生成后自动推送，点击卡片直接查看报告详情
+                报告生成与 AI 策略开通、到期均自动推送，点击报告卡片直接查看详情
               </p>
             </div>
           )}

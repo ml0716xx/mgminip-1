@@ -15,6 +15,7 @@ import { ModePage } from './components/ModePage';
 import { BizReportPage } from './components/BizReportPage';
 import { TianyingSimPage } from './components/TianyingSimPage';
 import { AiActivationStatus } from './data/overviewData';
+import type { NoticeTarget } from './data/noticeData';
 import { STATION } from './data/stationData';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, X } from 'lucide-react';
@@ -52,6 +53,8 @@ export default function App() {
   };
 
   // Handle Menu Clicking
+  // 注意：天盈 AI 仿真报告已不设功能页入口（原「策略管理」内的卡片已移除），
+  // 唯一入口是「消息」→ 消息通知里的「天盈 AI 仿真报告已生成」推送卡片。
   const handleSelectFeature = (featureId: string) => {
     if (featureId === 'strategy_report') {
       setFullScreen('report');
@@ -59,8 +62,6 @@ export default function App() {
       setFullScreen('mode');
     } else if (featureId === 'business_report') {
       setFullScreen('biz');
-    } else if (featureId === 'tianying_sim') {
-      setFullScreen('sim');
     } else {
       // Elegant micro toast notification for unimplemented features
       const names: Record<string, string> = {
@@ -74,7 +75,7 @@ export default function App() {
   };
 
   // 消息页报告推送 → 打开对应报告
-  const handleOpenReport = (target: 'tianying_sim' | 'business_report' | 'strategy_report') => {
+  const handleOpenReport = (target: NoticeTarget) => {
     if (target === 'tianying_sim') setFullScreen('sim');
     else if (target === 'business_report') setFullScreen('biz');
     else setFullScreen('report');

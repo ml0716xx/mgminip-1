@@ -17,6 +17,7 @@ import {
   Circle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { unreadNoticeCount } from '../data/noticeData';
 
 interface WeChatShellProps {
   activeTab: ActiveTab;
@@ -46,7 +47,7 @@ export const WeChatShell: React.FC<WeChatShellProps> = ({
   const tabs: TabItem[] = [
     { id: 'overview', name: '概览', icon: Home },
     { id: 'features', name: '功能', icon: Box },
-    { id: 'messages', name: '消息', icon: MessageSquare, badge: 2 },
+    { id: 'messages', name: '消息', icon: MessageSquare, badge: unreadNoticeCount },
     { id: 'workbench', name: '工作台', icon: LayoutGrid },
   ];
 
