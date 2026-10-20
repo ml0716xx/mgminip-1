@@ -167,91 +167,21 @@ const CompareTable: React.FC<{ rows: CompareRow[] }> = ({ rows }) => (
   </table>
 );
 
-// ==================== 九项指标 · 单栏紧凑表 ====================
-const MetricColumn: React.FC<{ title: string; unit: string; rows: CompareRow[] }> = ({
-  title,
-  unit,
-  rows,
-}) => (
+// ==================== 九项指标 · 分组卡（上下堆叠，全宽） ====================
+/* 小程序 395px 宽下两栏并排会把数值压到 7.5px、贴边难读，改为每类一张全宽卡。
+   单位只在行内标注：电量类里混着 %(储能利用率) 与 次/日(日均充放次数)，
+   分组标题若写 kWh 会以偏概全。 */
+const MetricGroup: React.FC<{ title: string; rows: CompareRow[] }> = ({ title, rows }) => (
   <div className="rounded-xl border overflow-hidden" style={{ borderColor: INK.line }}>
     <div
-      className="px-2 py-1.5 bg-slate-50/70 border-b flex items-baseline gap-1"
+      className="px-2.5 py-1.5 bg-slate-50/70 border-b"
       style={{ borderColor: INK.line }}
     >
-      <span className="text-[9px] font-black" style={{ color: INK.body }}>
+      <span className="text-[10px] font-black" style={{ color: INK.body }}>
         {title}
       </span>
-      <span className="text-[7px] font-bold" style={{ color: INK.muted }}>
-        {unit}
-      </span>
     </div>
-    <table className="w-full table-fixed">
-      <colgroup>
-        <col style={{ width: '39%' }} />
-        <col style={{ width: '20%' }} />
-        <col style={{ width: '20%' }} />
-        <col style={{ width: '21%' }} />
-      </colgroup>
-      <thead>
-        <tr className="border-b" style={{ borderColor: INK.line }}>
-          <th className="text-left px-1 py-1 text-[7px] font-black" style={{ color: INK.muted }}>
-            指标
-          </th>
-          <th
-            className="text-right px-0.5 py-1 text-[7px] font-black leading-[1.15]"
-            style={{ color: INK.muted }}
-          >
-            实际
-            <br />
-            运行
-          </th>
-          <th
-            className="text-right px-0.5 py-1 text-[7px] font-black leading-[1.15]"
-            style={{ color: INK.muted }}
-          >
-            AI
-            <br />
-            策略
-          </th>
-          <th className="text-right px-0.5 py-1 text-[7px] font-black" style={{ color: INK.muted }}>
-            绝对差
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => {
-          const d = r.sim - r.real;
-          return (
-            <tr key={r.item} className="border-t border-gray-50">
-              <td
-                className="px-1 py-[5px] text-[8px] truncate leading-tight"
-                style={{ color: INK.body }}
-              >
-                {r.item}
-              </td>
-              <td
-                className="px-0.5 py-[5px] text-right text-[7.5px] font-mono tracking-tighter"
-                style={{ color: INK.second }}
-              >
-                {fmt(r.real, r.dec)}
-              </td>
-              <td
-                className="px-0.5 py-[5px] text-right text-[7.5px] font-mono tracking-tighter font-black"
-                style={{ color: INK.body }}
-              >
-                {fmt(r.sim, r.dec)}
-              </td>
-              <td
-                className="px-0.5 py-[5px] text-right text-[7.5px] font-mono tracking-tighter font-black"
-                style={{ color: diffColor(d, r.dec) }}
-              >
-                {Math.abs(d) < 10 ** -r.dec / 2 ? '—' : fmtSigned(d, r.dec)}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <CompareTable rows={rows} />
   </div>
 );
 
@@ -727,7 +657,7 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
 
           {/* ==================== 第 3 段 九项指标 ==================== */}
           <Chapter no="3" title="九项指标逐条对一遍">
-            <div className="grid grid-cols-2 gap-1.5 items-start">
+            <div className="space-y-2.5">
               {SIM_GROUPS.map((g) => {
                 const rows = TY_SIM_ROWS.filter((r) => r.group === g).map((r) => ({
                   item: r.item,
@@ -736,14 +666,7 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
                   unit: r.unit,
                   dec: r.dec,
                 }));
-                return (
-                  <MetricColumn
-                    key={g}
-                    title={g}
-                    unit={g === '电量类' ? 'kWh' : '元'}
-                    rows={rows}
-                  />
-                );
+                return <MetricGroup key={g} title={g} rows={rows} />;
               })}
             </div>
           </Chapter>
