@@ -748,7 +748,7 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
             </div>
           </Chapter>
 
-          {/* ==================== 未开通：开通 30 天试用引导条 ==================== */}
+          {/* ============ 未开通：开通 30 天试用 + 申请开通正式运行（两个入口，勿合并） ============ */}
           <AnimatePresence>
             {aiStatus === 'not_activated' && (
               <motion.div
@@ -764,13 +764,22 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
                     开通 30 天试用
                   </span>
                 </div>
-                <button
-                  id="btn_ai_trial_sim"
-                  onClick={() => onSetAiStatus?.('trial')}
-                  className="mt-2.5 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[12px] font-black shadow-sm shadow-emerald-500/25 active:scale-[0.99] transition-transform"
-                >
-                  一键免费开通 30 天试用
-                </button>
+                <div className="mt-2.5 flex items-stretch gap-2">
+                  <button
+                    id="btn_ai_trial_sim"
+                    onClick={() => onSetAiStatus?.('trial')}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[11px] font-black shadow-sm shadow-emerald-500/25 active:scale-[0.99] transition-transform whitespace-nowrap"
+                  >
+                    一键免费开通 30 天试用
+                  </button>
+                  <button
+                    id="btn_ai_activated_sim"
+                    onClick={() => onSetAiStatus?.('activated')}
+                    className="shrink-0 px-3 py-2.5 rounded-xl bg-white border border-emerald-300 text-emerald-700 text-[11px] font-black active:scale-[0.99] transition-transform whitespace-nowrap"
+                  >
+                    开通正式
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
