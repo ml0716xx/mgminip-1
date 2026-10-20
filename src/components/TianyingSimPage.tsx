@@ -36,7 +36,7 @@ import {
   LabelList,
   Tooltip,
 } from 'recharts';
-import { ChevronLeft, ChevronRight, BrainCircuit, Rocket, Gauge } from 'lucide-react';
+import { ChevronLeft, BrainCircuit, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AiActivationStatus } from '../data/overviewData';
 import {
@@ -73,7 +73,6 @@ const INK = {
 
 interface TianyingSimPageProps {
   onBack: () => void;
-  onOpenBizReport?: () => void;
   /** AI 策略开通状态：未开通时正文末尾附开通引导条 */
   aiStatus?: AiActivationStatus;
   onSetAiStatus?: (s: AiActivationStatus) => void;
@@ -442,7 +441,6 @@ const CaseDayCurve: React.FC<{
 // ==================== 主页面 ====================
 export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
   onBack,
-  onOpenBizReport,
   aiStatus = 'activated',
   onSetAiStatus,
 }) => {
@@ -706,30 +704,6 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* ==================== 跳转经营分析报告 ==================== */}
-          {onOpenBizReport && (
-            <button
-              onClick={onOpenBizReport}
-              id="btn_sim_open_biz"
-              className="w-full bg-white rounded-2xl border border-gray-100 p-3.5 shadow-xs flex items-center justify-between active:scale-[0.99] transition-transform"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                  <Gauge className="w-4 h-4" />
-                </div>
-                <div className="text-left">
-                  <span className="text-[11px] font-black block" style={{ color: INK.body }}>
-                    查看本月经营分析报告
-                  </span>
-                  <span className="text-[9px] font-bold" style={{ color: INK.muted }}>
-                    策略收益与真实运行数据的对照分析
-                  </span>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-300" />
-            </button>
-          )}
         </div>
       </div>
     </div>

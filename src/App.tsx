@@ -140,7 +140,6 @@ export default function App() {
           return (
             <TianyingSimPage
               onBack={() => setFullScreen(null)}
-              onOpenBizReport={() => setFullScreen('biz')}
               aiStatus={aiStatus}
               onSetAiStatus={handleAiStatusChange}
             />
