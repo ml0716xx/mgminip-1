@@ -1,11 +1,14 @@
 /* ==========================================================================
-   天盈 AI 仿真报告 · 数据层（小程序端）
+   天盈 AI 站点策略&收益体检报告 · 数据层（小程序端）
    --------------------------------------------------------------------------
-   数据与 web 端 -2.0 `components/tianyingReportData.ts` 的售前《天盈 AI 仿真报告》
-   部分**逐项对齐**，保证小程序与 web 弹窗看到的是同一份报告、同一组数字。
+   与 web 端 -2.0《天盈 AI 站点策略&收益体检报告》同源，数字逐项一致。
 
-   口径：站点实际运行（固定规则策略） vs AI 策略仿真
-   结构：报告头核心结论 + 第 1 章仿真收益对比 + 第 2 章典型日分析
+   读法（体检报告的三段式，顺序即叙事顺序）：
+     1 典型日     先看一天的真实曲线，看见 AI 改了什么动作
+     2 这个月     认可之后再算钱，钱是诊断出来的结果
+     3 九项指标   逐条对一遍，可核验
+
+   口径：站点实际运行（固定规则策略） vs AI 策略
    ========================================================================== */
 
 import { STATION } from './stationData';
@@ -13,14 +16,19 @@ import { STATION } from './stationData';
 /* ---------------------------- 站点与报告元信息 ---------------------------- */
 /* 站点口径取自 stationData 单一真源，与经营分析报告 / 小程序顶部完全一致 */
 export const TY_META = {
+  /** 报告全名 */
+  title: '天盈 AI 站点策略&收益体检报告',
+  /** 入口按钮 */
+  entryLabel: '天盈AI策略运行体检报告',
+  /** 报告头徽章 */
+  badge: '站点策略体检',
   station: STATION.name,
   stationFull: `${STATION.entity} 1# 站`,
   region: STATION.region,
   period: '2026-09',
   periodLabel: '2026年09月',
+  /** 版本号保留「仿真」二字，是测算口径的诚实标注，全文仅此一处 */
   version: 'AI 策略仿真 V1.0',
-  caliberNote:
-    '本报告基于站点历史实际负荷与光伏出力数据，在相同输入条件下回算 AI 调度策略，与实际运行结果逐项对比。两侧采用同一份负荷与光伏数据，差异可直接归因于策略本身。',
 } as const;
 
 /* ---------------------------- 站点配置参数 ---------------------------- */
@@ -50,7 +58,7 @@ export const TY_SIM_DELTA = {
   liftPct: ((TY_SIM_KPI.total.sim - TY_SIM_KPI.total.real) / TY_SIM_KPI.total.real) * 100,
 } as const;
 
-/* ---------------------------- 逐项对照表 ---------------------------- */
+/* ---------------------------- 九项指标对照表 ---------------------------- */
 const CHG = { real: 49700, sim: 54300 };
 const DIS = { real: 45500, sim: 49700 };
 /** 储能利用率 = 放电量 ÷ 充电量 */
@@ -77,28 +85,31 @@ export const TY_SIM_ROWS: {
   { group: '收益类', item: '总收益', real: 61200, sim: 69030, unit: '元', dec: 0 },
 ];
 
-/** 逐项对照表分组顺序（电量在前、收益在后） */
+/** 九项指标分组（左栏电量类 6 行、右栏收益类 3 行） */
 export const SIM_GROUPS = ['电量类', '收益类'] as const;
 
-/** 收益增量来源（量价分解） */
-export const TY_SIM_WHY = [
+/**
+ * 增量来源：金额由 TY_SIM_DELTA 派生，不在文案里写死。
+ * 储能 +8150、光伏 -320，合计 +7830 —— 三项天然对得上。
+ */
+export const TY_SIM_WHY: {
+  title: string;
+  amount: number;
+  brief: string;
+}[] = [
   {
-    no: '①',
     title: '储能',
-    amount: '+8,150 元',
-    tone: 'up' as const,
-    brief: '低谷充、高峰放，单位放电净收益 0.679 → 0.786 元/kWh',
+    amount: TY_SIM_DELTA.storageDiff,
+    brief: `低谷充、高峰放，单位放电净收益 ${TY_SIM_KPI.unit.real.toFixed(3)} → ${TY_SIM_KPI.unit.sim.toFixed(3)} 元/kWh`,
   },
   {
-    no: '②',
     title: '光伏',
-    amount: '-320 元',
-    tone: 'down' as const,
+    amount: TY_SIM_DELTA.pvDiff,
     brief: '消纳率已 98.55%，余电上网与自用各挪 26 kWh',
   },
-] as const;
+];
 
-/* ---------------------------- 电价口径 ---------------------------- */
+/* ---------------------------- 分时电价 ---------------------------- */
 export const TY_PRICE = {
   tou: [
     { key: 'peak', label: '峰', price: 1.0752, window: '08:00–11:00、18:00–21:00' },
@@ -106,20 +117,25 @@ export const TY_PRICE = {
     { key: 'valley', label: '谷', price: 0.2975, window: '22:00–06:00' },
   ],
   salePrice: 0.391,
-  note: '购电分时三档为站点执行电价；加权电价按逐 15min 用电量加权，两侧共用同一套分时电价，差异只来自电量落在哪个时段。',
 } as const;
 
-const CHG_W = { real: 0.3428, sim: 0.3124 };
-const DIS_W = { real: 0.8805, sim: 0.9168 };
+/** 档位 → 电价（由 TY_PRICE.tou 派生，改价只改一处） */
+const TIER_PRICE: Record<string, number> = Object.fromEntries(
+  TY_PRICE.tou.map((t) => [t.key, t.price]),
+);
 
-/** 加权电价对比行（元/kWh） */
-export const TY_PRICE_COMPARE = [
-  { label: '充电加权电价', real: CHG_W.real, sim: CHG_W.sim, dec: 4 },
-  { label: '放电加权电价', real: DIS_W.real, sim: DIS_W.sim, dec: 4 },
-  { label: '充放电毛价差', real: DIS_W.real - CHG_W.real, sim: DIS_W.sim - CHG_W.sim, dec: 4 },
-] as const;
+/** 电价轴的量程上限：最高价 × 1.12，让面积顶部留出呼吸空间 */
+export const PRICE_DOMAIN_MAX =
+  Math.max(...TY_PRICE.tou.map((t) => t.price), TY_PRICE.salePrice) * 1.12;
 
-/* ---------------------------- 案例日 ---------------------------- */
+/** 图例用的电价区间文案 */
+export const PRICE_RANGE_TEXT = {
+  buyMin: Math.min(...TY_PRICE.tou.map((t) => t.price)),
+  buyMax: Math.max(...TY_PRICE.tou.map((t) => t.price)),
+  sell: TY_PRICE.salePrice,
+} as const;
+
+/* ---------------------------- 典型日 ---------------------------- */
 interface CaseRow {
   name: string;
   real: number;
@@ -129,55 +145,44 @@ interface CaseRow {
 const isMoney = (n: string) => n.includes('(元)');
 
 /** 收益差一律由 rows 派生，避免卡片数字与下方表格对不上 */
-const caseDay = (date: string, tag: string, rows: CaseRow[], reading: string) => ({
+const caseDay = (date: string, rows: CaseRow[]) => ({
   date,
-  tag,
   rows,
-  storageDiff: rows.filter((r) => isMoney(r.name) && r.name.startsWith('储能')).reduce((s, r) => s + (r.sim - r.real), 0),
+  storageDiff: rows
+    .filter((r) => isMoney(r.name) && r.name.startsWith('储能'))
+    .reduce((s, r) => s + (r.sim - r.real), 0),
   totalDiff: rows.filter((r) => isMoney(r.name)).reduce((s, r) => s + (r.sim - r.real), 0),
-  reading,
 });
 
 /** 只取 AI 优于实际的正向案例：按储能收益差排序取当月前 3 个典型日 */
 export const TY_CASE_DAYS = [
-  caseDay(
-    '2026-09-12',
-    '差异最大',
-    [
-      { name: '储能充电量 (kWh)', real: 1652, sim: 1836 },
-      { name: '储能放电量 (kWh)', real: 1518, sim: 1694 },
-      { name: '储能收益 (元)', real: 1030, sim: 1516 },
-      { name: '光伏收益 (元)', real: 1010, sim: 1004 },
-    ],
-    'AI 将 184 kWh 充电量从平段挪至谷段，放电量增加 176 kWh 且集中在峰段，当日储能收益差 +486 元，是当月差异最大的典型日。',
-  ),
-  caseDay(
-    '2026-09-20',
-    '代表日',
-    [
-      { name: '储能充电量 (kWh)', real: 1610, sim: 1742 },
-      { name: '储能放电量 (kWh)', real: 1480, sim: 1615 },
-      { name: '储能收益 (元)', real: 1002, sim: 1314 },
-      { name: '光伏收益 (元)', real: 986, sim: 972 },
-    ],
-    '当日光伏出力中等、负荷平稳，AI 的增益主要来自峰谷时段重排，放电量增幅 9.1%，收益增幅 31.1%。',
-  ),
-  caseDay(
-    '2026-09-08',
-    '常态日',
-    [
-      { name: '储能充电量 (kWh)', real: 1596, sim: 1720 },
-      { name: '储能放电量 (kWh)', real: 1462, sim: 1602 },
-      { name: '储能收益 (元)', real: 1005, sim: 1273 },
-      { name: '光伏收益 (元)', real: 978, sim: 966 },
-    ],
-    '当日光伏出力偏低、负荷平稳，AI 把 124 kWh 充电量挪到谷段、放电量增加 140 kWh 且集中在峰段，储能收益差 +268 元。',
-  ),
+  caseDay('2026-09-12', [
+    { name: '储能充电量 (kWh)', real: 1652, sim: 1836 },
+    { name: '储能放电量 (kWh)', real: 1518, sim: 1694 },
+    { name: '储能收益 (元)', real: 1030, sim: 1516 },
+    { name: '光伏收益 (元)', real: 1010, sim: 1004 },
+  ]),
+  caseDay('2026-09-20', [
+    { name: '储能充电量 (kWh)', real: 1610, sim: 1742 },
+    { name: '储能放电量 (kWh)', real: 1480, sim: 1615 },
+    { name: '储能收益 (元)', real: 1002, sim: 1314 },
+    { name: '光伏收益 (元)', real: 986, sim: 972 },
+  ]),
+  caseDay('2026-09-08', [
+    { name: '储能充电量 (kWh)', real: 1596, sim: 1720 },
+    { name: '储能放电量 (kWh)', real: 1462, sim: 1602 },
+    { name: '储能收益 (元)', real: 1005, sim: 1273 },
+    { name: '光伏收益 (元)', real: 978, sim: 966 },
+  ]),
 ];
 
 /* ---------------------------- 典型日逐 15min 曲线 ----------------------------
-   展示口径与 ml0716xx/--1「运营数据 · 典型日分析」一致：双 Y 轴
-   （左轴储能功率 kW、右轴 SOC%）、两条实线功率 + 两条虚线 SOC、图下 24h 电价档位色带。
+   双 Y 轴（左轴储能功率 kW、右轴 SOC%），两条实线功率 + 两条虚线 SOC。
+   电价不画色带、不占可见刻度轴，改为图内两条面积：
+     · 下网购电价格 —— 阶梯面积，随峰/平/谷跳变
+     · 上网电价     —— 水平面积，全天固定
+   两条面积由隐藏的第三根 Y 轴承载（量程 0 ~ PRICE_DOMAIN_MAX）。
+
    构造方式为「时段计划 + 电量目标」生成（段内恒功率、SOC 逐 15min 积分），
    曲线与上方日粒度表格天然自洽。
    -------------------------------------------------------------------------- */
@@ -189,6 +194,10 @@ export interface CaseDayPoint {
   real: number;
   socSim: number;
   socReal: number;
+  /** 该时段的购电电价（峰/平/谷阶梯） */
+  buyPrice: number;
+  /** 该时段的上网电价（全天固定） */
+  sellPrice: number;
 }
 
 interface CurveSegment {
@@ -272,14 +281,19 @@ function buildDayCurves(date: string): CaseDayPoint[] {
   const p = TY_CASE_CURVE_PLANS[date];
   const sim = buildCurve(p.sim, TY_SITE.essCapacityKwh);
   const real = buildCurve(p.real, TY_SITE.essCapacityKwh);
-  return Array.from({ length: 96 }, (_, i) => ({
-    time: slotTime(i),
-    tier: tierOfSlot(i),
-    sim: +sim.power[i].toFixed(1),
-    real: +real.power[i].toFixed(1),
-    socSim: +sim.socs[i].toFixed(2),
-    socReal: +real.socs[i].toFixed(2),
-  }));
+  return Array.from({ length: 96 }, (_, i) => {
+    const tier = tierOfSlot(i);
+    return {
+      time: slotTime(i),
+      tier,
+      sim: +sim.power[i].toFixed(1),
+      real: +real.power[i].toFixed(1),
+      socSim: +sim.socs[i].toFixed(2),
+      socReal: +real.socs[i].toFixed(2),
+      buyPrice: TIER_PRICE[tier] ?? TIER_PRICE.flat,
+      sellPrice: TY_PRICE.salePrice,
+    };
+  });
 }
 
 export const TY_CASE_CURVES: Record<string, CaseDayPoint[]> = {
@@ -288,31 +302,17 @@ export const TY_CASE_CURVES: Record<string, CaseDayPoint[]> = {
   '2026-09-08': buildDayCurves('2026-09-08'),
 };
 
-/** 24h 电价档位色带（按时间顺序，1 格 = 15min，共 96 格） */
-export const TY_TOU_SEGMENTS = Array.from({ length: 96 }, (_, i) => ({ slot: i, tier: tierOfSlot(i) }));
-
-/** 电价档位：中文名 + 配色 */
-export const TIER_META: Record<string, { label: string; color: string }> = {
-  peak: { label: '峰', color: '#F87171' },
-  flat: { label: '平', color: '#60A5FA' },
-  valley: { label: '谷', color: '#34D399' },
-};
-
-/** 曲线图例与口径说明 */
+/** 曲线图例文案（全文不出现「仿真」，只有版本号保留） */
 export const TY_CURVE_TEXT = {
   chartTitle: '典型日逐 15min 充放电曲线',
-  rule: '案例日选取：按储能收益差排序取当月前 3 个典型日，均为 AI 策略优于实际运行的案例。',
   legend: {
+    buyPrice: '下网购电价格',
+    sellPrice: '上网电价',
     realPower: '实际运行 · 储能功率',
-    simPower: 'AI 仿真 · 储能功率',
+    simPower: 'AI 策略 · 储能功率',
     realSoc: '实际运行 · SOC',
-    simSoc: 'AI 仿真 · SOC',
+    simSoc: 'AI 策略 · SOC',
   },
-  axisPower: '储能功率 (kW)',
-  axisSoc: 'SOC (%)',
-  powerNote: '（正充负放）',
-  socNote: '两侧 SOC 全程落在 5%–95% 配置区间内。',
-  footLabels: { charge: '当日充电量', discharge: '当日放电量', real: '实际', sim: '仿真' },
 } as const;
 
 /* ---------------------------- 通用格式化 ---------------------------- */

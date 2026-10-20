@@ -5,7 +5,7 @@
  * 消息通知 · 数据层
  * --------------------------------------------------------------------------
  * 「消息通知」一级分类下的全部推送类型（共 6 类）：
- *   1. 天盈 AI 仿真报告推送到达      kind = report   target = tianying_sim
+ *   1. 天盈 AI 站点策略&收益体检报告送达  kind = report   target = tianying_sim
  *   2. 经营分析报告生成              kind = report   target = business_report
  *   3. 策略运行报告生成              kind = report   target = strategy_report
  *   4. AI 策略开通（试运行 / 正式）  kind = activation
@@ -13,10 +13,13 @@
  *
  * 时间线按一条完整的用户旅程排列（新 → 旧），保证先后关系自洽：
  *   09-25 试运行开通 → 10-03 试运行即将到期 → 10-05 正式运行开通
- *   → 昨天 正式运行即将到期 / 经营报告生成 → 今天 天盈仿真报告推送
+ *   → 昨天 正式运行即将到期 / 经营报告生成 → 今天 体检报告推送
  *
  * 未读数由 unreadNoticeCount 派生（小程序底部「消息」红点用它），不要在组件里写死。
+ * 体检报告的金额从 tianyingSimData 派生，与报告正文同源，不在这里写死。
  */
+
+import { TY_SIM_DELTA, fmt } from './tianyingSimData';
 
 export type NoticeTarget = 'tianying_sim' | 'business_report' | 'strategy_report';
 
@@ -40,9 +43,12 @@ export const NOTICE_MESSAGES: NoticeMsg[] = [
   {
     id: 101,
     kind: 'report',
-    title: '天盈 AI 仿真报告已生成',
+    title: '天盈 AI 站点策略&收益体检报告已送达',
     time: '今天 08:00',
-    desc: '2026年09月天盈 AI 仿真回测完成：AI 策略仿真总收益 69,030 元，较实际运行提升 12.8%，点击查看完整对比报告。',
+    desc: `2026-09 站点策略体检已完成：储能多赚 ${fmt(TY_SIM_DELTA.storageDiff, 0)} 元、光伏少 ${fmt(
+      Math.abs(TY_SIM_DELTA.pvDiff),
+      0,
+    )} 元，一个月净多 ${fmt(TY_SIM_DELTA.net, 0)} 元。点击查看典型日曲线与九项指标。`,
     target: 'tianying_sim',
     badge: '天盈 AI',
     unread: true,

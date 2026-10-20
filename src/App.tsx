@@ -43,9 +43,11 @@ export default function App() {
   /** 开通状态变更（经营报告／策略运行报告的「开通试用／开通正式」按钮、工作台演示开关） */
   const handleAiStatusChange = (s: AiActivationStatus) => {
     setAiStatus(s);
+    // 提示里不写试用天数：各处开通入口的试用期口径尚未统一（体检报告写 30 天、
+    // AiActivationCta 的说明写 7 天），先避免点完按钮就自相矛盾
     showToast(
       s === 'trial'
-        ? '已开通 AI 策略试用（7 天全功能体验）'
+        ? '已开通 AI 策略试用'
         : s === 'activated'
         ? '已开通 AI 策略正式运行'
         : '已切换为「未开通」状态',
@@ -53,8 +55,8 @@ export default function App() {
   };
 
   // Handle Menu Clicking
-  // 注意：天盈 AI 仿真报告已不设功能页入口（原「策略管理」内的卡片已移除），
-  // 唯一入口是「消息」→ 消息通知里的「天盈 AI 仿真报告已生成」推送卡片。
+  // 注意：天盈 AI 站点策略&收益体检报告已不设功能页入口（原「策略管理」内的卡片已移除），
+  // 唯一入口是「消息」→ 消息通知里的推送卡片。
   const handleSelectFeature = (featureId: string) => {
     if (featureId === 'strategy_report') {
       setFullScreen('report');
