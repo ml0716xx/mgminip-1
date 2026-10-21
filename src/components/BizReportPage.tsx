@@ -10,6 +10,7 @@
  *   1.3 充电桩充电量&收益
  *   二、指标分析（2.1 光伏消纳率 / 2.2 度电成本）
  *   三、AI 策略分析（新增，按未开通/试运行/正式运行三态差异展示）
+ *   四、三相不平衡治理（增值服务 · 与 web 用户端同源口径）
  */
 
 import React, { useState } from 'react';
@@ -50,6 +51,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { BUSINESS_REPORT, AI_STRATEGY_CONTENT } from '../data/businessReportData';
 import { AiActivationStatus, AI_STATUS_META } from '../data/overviewData';
 import { AiActivationCta, AiUpgradeCta } from './AiActivationCta';
+import { PhaseImbalanceCard } from './PhaseImbalanceCard';
 import { STATION } from '../data/stationData';
 
 interface BizReportPageProps {
@@ -457,6 +459,7 @@ export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus =
                 '2.1 光伏消纳率',
                 '2.2 度电成本',
                 '三、AI 策略分析',
+                '四、三相不平衡治理',
               ].map((t) => (
                 <div key={t} className="flex items-center gap-2 text-[10px] text-gray-600 font-bold">
                   <span className="w-1 h-1 rounded-full bg-emerald-400" />
@@ -757,6 +760,9 @@ export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus =
 
           {/* ===== 三、AI 策略分析 ===== */}
           <AiStrategySection status={status} onSwitch={setStatus} />
+
+          {/* ===== 四、三相不平衡治理 ===== */}
+          <PhaseImbalanceCard />
 
           <p className="text-[9px] text-gray-400 text-center pt-1">
             报告由天合富家智能微网平台自动生成 · 数据口径以结算单为准
