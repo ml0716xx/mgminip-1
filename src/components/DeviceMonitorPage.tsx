@@ -5,10 +5,10 @@
  * 设备监控（小程序端）
  * --------------------------------------------------------------------------
  * 功能页 · 微网管理 → 设备监控。
- * 一个「全部」列表装下所有类型（EMS、逆变器、储能、PCS、电池簇、储能空调、
- * 储能消防、电表、充电桩、充电枪、变压器、辐照仪、负载），不按类型分 tab。
- * 35 台设备的指标堆在卡片上没人看得完，所以卡上只留身份 + 在线 / 故障状态，
- * 点进去看「最新数据」点表。
+ * 四个分类 tab（全部 / 储能 / 逆变器 / 充电桩），都只列整机 17 台。
+ * 储能柜下的 PCS、电池簇、消防、空调，充电桩下的充电枪，挂在上级设备详情里，
+ * 不单独占卡 —— 一台设备一个入口，避免从列表和详情两处都能点进同一台。
+ * 卡上只留身份 + 在线 / 故障状态，指标和点表都在详情页。
  */
 
 import React, { useMemo, useState } from 'react';
@@ -136,7 +136,7 @@ const DeviceCard: React.FC<{ device: DeviceItem; onOpen: () => void }> = ({ devi
             <span className="text-[12px] font-black text-gray-900 truncate">{device.name}</span>
             <DeviceState deviceId={device.id} conn={device.conn} faultCount={device.faultCount} />
           </div>
-          {/* 列表只要名称和 SN：型号规格在详情页看，35 台堆在卡上反而更难扫 */}
+          {/* 列表只要名称和 SN：型号规格在详情页看，17 张卡堆在一起反而更难扫 */}
           <span className="text-[9px] text-gray-400 font-mono font-bold block truncate mt-1">
             SN {device.sn}
           </span>
@@ -651,7 +651,7 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* 设备列表：切换分类时整段淡入，别让 35 张卡硬跳 */}
+          {/* 设备列表：切换分类时整段淡入，别让 17 张卡硬跳 */}
           {list.length === 0 ? (
             <NoResult onReset={resetFilter} />
           ) : (

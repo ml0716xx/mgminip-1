@@ -11,7 +11,10 @@
  * 每台设备只存两样东西：
  *   ① 身份 —— 名称、规格、通信状态、故障条数
  *   ② 点表 —— 「最新数据」里的字段，顺序即展示顺序
- * 列表卡不再放指标：35 台设备，指标堆在卡上没人看得完，点进去看最新数据更清楚。
+ * 列表卡不再放指标：整机 17 台，指标堆在卡上没人看得完，点进去看最新数据更清楚。
+ *
+ * 层级：整机 17 台在前台列表里出现；PCS / 电池簇 / 消防 / 空调挂在储能柜下，
+ * 充电枪挂在充电桩下，只在上级设备详情的「下属设备」里出现，不单独占一张卡。
  *
  * 数字不是随手编的，全部咬住概览页那份实时快照（ENERGY_FLOW / TODAY_*）：
  *   光伏 486.74 + 下网 385.7 = 负载 723.24 + 储能 149.2
@@ -897,7 +900,8 @@ export const DEVICE_TABS: { key: DeviceCategoryKey; label: string }[] = [
 
 /**
  * 下属设备（充电枪、PCS、电池簇、消防、空调）的 id 集合。
- * 它们挂在整机下面，分类 tab 不再单列，只在「全部」里作为台账条目出现。
+ * 它们挂在整机下面，四个 tab 都不单列 —— 一台设备只有一个入口，
+ * 从柜/桩的详情页点进去看。
  */
 const CHILD_IDS = new Set<string>();
 DEVICE_LIST.forEach((d) => {
@@ -906,17 +910,21 @@ DEVICE_LIST.forEach((d) => {
 });
 export const isSubDevice = (id: string) => CHILD_IDS.has(id);
 
-/** 某个 tab 下的设备：「全部」是全量台账，其余 tab 只列整机 */
-export const devicesInCategory = (k: DeviceCategoryKey): DeviceItem[] =>
-  k === 'all'
-    ? DEVICE_LIST
-    : DEVICE_LIST.filter((d) => TYPE_CATEGORY[d.type] === k && !CHILD_IDS.has(d.id));
+/**
+ * 整机台账：把下属设备摘掉之后的设备清单。
+ * 列表、tab 台数、概览、类型筛选全部按这一份算，页面上的数字才对得上。
+ */
+export const DEVICE_UNITS: DeviceItem[] = DEVICE_LIST.filter((d) => !CHILD_IDS.has(d.id));
 
-/** 筛选面板用的类型清单：只列台账里真实有的类型，顺序照台账 */
+/** 某个 tab 下的设备：四个 tab 都只列整机 */
+export const devicesInCategory = (k: DeviceCategoryKey): DeviceItem[] =>
+  k === 'all' ? DEVICE_UNITS : DEVICE_UNITS.filter((d) => TYPE_CATEGORY[d.type] === k);
+
+/** 筛选面板用的类型清单：只列整机里真实有的类型，顺序照台账 */
 export const DEVICE_TYPE_OPTIONS = (() => {
   const seen = new Set<DeviceTypeKey>();
   const out: { key: DeviceTypeKey; label: string }[] = [];
-  DEVICE_LIST.forEach((d) => {
+  DEVICE_UNITS.forEach((d) => {
     if (!seen.has(d.type)) {
       seen.add(d.type);
       out.push({ key: d.type, label: DEVICE_TYPE_LABEL[d.type] });
@@ -942,11 +950,11 @@ export const queryDevices = (o: {
   });
 };
 
-/** 概览：全部由台账派生，不另外维护一份数字 */
+/** 概览：按整机台账派生，和列表里看得到的台数一致 */
 export const DEVICE_SUMMARY = {
-  total: DEVICE_LIST.length,
-  online: DEVICE_LIST.filter((d) => d.conn === 'online').length,
-  fault: DEVICE_LIST.filter((d) => d.faultCount > 0).length,
+  total: DEVICE_UNITS.length,
+  online: DEVICE_UNITS.filter((d) => d.conn === 'online').length,
+  fault: DEVICE_UNITS.filter((d) => d.faultCount > 0).length,
 };
 
 /** 设备数据的采集口径，页脚用 */
