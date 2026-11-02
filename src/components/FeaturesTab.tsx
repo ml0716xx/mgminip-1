@@ -5,8 +5,6 @@
 
 import React from 'react';
 import {
-  BellRing,
-  AlertTriangle,
   FolderLock,
   FileCheck,
   CalendarDays,
@@ -41,75 +39,45 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
         </span>
       </div>
 
-      {/* Section 1: 报警管理 */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 pl-0.5">
-          <div className="w-1.5 h-4 bg-emerald-500 rounded-xs" />
-          <h3 className="text-sm font-bold text-gray-900 tracking-tight">报警管理</h3>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          {/* 故障报警 */}
-          <div
-            id="btn_fault_alarm"
-            className="bg-white p-4 rounded-2xl border border-orange-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
-            onClick={() => onSelectFeature('fault_alarm')}
-          >
-            <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 text-white group-active:scale-95 transition-transform">
-              <BellRing className="w-6 h-6 animate-swing" />
-            </div>
-            <span className="text-xs font-bold text-gray-800 mt-3">故障报警</span>
-          </div>
-
-          {/* 事件报警 */}
-          <div
-            id="btn_event_alarm"
-            className="bg-white p-4 rounded-2xl border border-amber-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
-            onClick={() => onSelectFeature('event_alarm')}
-          >
-            <div className="w-12 h-12 bg-amber-400 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-400/20 text-white group-active:scale-95 transition-transform">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-gray-800 mt-3">事件报警</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Section 2: 策略管理 */}
+      {/* Section 1: 策略管理
+          报警管理不在这里 —— 故障与事件告警已并入「消息 · 告警消息」，功能页不再重复入口 */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 pl-0.5">
           <div className="w-1.5 h-4 bg-emerald-500 rounded-xs" />
           <h3 className="text-sm font-bold text-gray-900 tracking-tight">策略管理</h3>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        {/* 与「微网管理」同一套尺寸：3 等分网格，一行 3 个的位置，现有两张卡各占 1/3。
+            第三格先空着 —— 卡片起点必须和分组标题对齐，居中会让整段缩进一截 */}
+        <div className="grid grid-cols-3 gap-3">
           {/* 策略运行 */}
           <div
             id="btn_strategy_run"
-            className="bg-white p-4 rounded-2xl border border-cyan-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-3 rounded-2xl border border-cyan-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('strategy_run')}
           >
-            <div className="w-12 h-12 bg-[#00bcd4] rounded-2xl flex items-center justify-center shadow-lg shadow-[#00bcd4]/20 text-white group-active:scale-95 transition-transform">
-              <FolderLock className="w-6 h-6" />
+            <div className="w-10 h-10 bg-[#00bcd4] rounded-xl flex items-center justify-center shadow-lg shadow-[#00bcd4]/20 text-white group-active:scale-95 transition-transform">
+              <FolderLock className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-gray-800 mt-3">策略运行</span>
+            <span className="text-[10px] font-extrabold text-gray-800 mt-2.5">策略运行</span>
           </div>
 
-          {/* 策略运行报告 (NEWLY ADDED) */}
+          {/* 策略运行报告 */}
           <div
             id="btn_strategy_report"
-            className="bg-white p-4 rounded-2xl border-2 border-emerald-500/60 shadow-md shadow-emerald-500/5 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            className="bg-white p-3 rounded-2xl border border-emerald-500/60 ring-1 ring-emerald-500/30 shadow-md shadow-emerald-500/5 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
             onClick={() => onSelectFeature('strategy_report')}
           >
-            <div className="w-12 h-12 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white group-active:scale-95 transition-transform">
-              <FileCheck className="w-6 h-6" />
+            <div className="w-10 h-10 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white group-active:scale-95 transition-transform">
+              <FileCheck className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-gray-900 mt-3 flex items-center gap-0.5">
+            <span className="text-[10px] font-extrabold text-gray-900 mt-2.5 whitespace-nowrap">
               策略运行报告
             </span>
           </div>
         </div>
       </div>
 
-      {/* Section 3: 微网管理 */}
+      {/* Section 2: 微网管理 */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 pl-0.5">
           <div className="w-1.5 h-4 bg-emerald-500 rounded-xs" />

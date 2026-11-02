@@ -66,9 +66,8 @@ export default function App() {
       setFullScreen('biz');
     } else {
       // Elegant micro toast notification for unimplemented features
+      // 故障报警 / 事件报警 的入口已下线（告警统一在「消息 · 告警消息」），这里不再留 id
       const names: Record<string, string> = {
-        fault_alarm: '故障报警监控',
-        event_alarm: '事件分析系统',
         strategy_run: '实时策略调控',
         schedule_manage: '值班排班配置',
       };
