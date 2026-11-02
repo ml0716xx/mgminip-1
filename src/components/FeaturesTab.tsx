@@ -9,6 +9,7 @@ import {
   FileCheck,
   CalendarDays,
   FilePieChart,
+  Cpu,
   GitFork,
   ArrowRight,
   Shield,
@@ -84,6 +85,18 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({ onSelectFeature, stati
           <h3 className="text-sm font-bold text-gray-900 tracking-tight">微网管理</h3>
         </div>
         <div className="grid grid-cols-3 gap-3">
+          {/* 设备监控 */}
+          <div
+            id="btn_device_monitor"
+            className="bg-white p-3 rounded-2xl border border-emerald-100 transition-all flex flex-col items-center justify-center text-center group cursor-pointer"
+            onClick={() => onSelectFeature('device_monitor')}
+          >
+            <div className="w-10 h-10 bg-[#00897b] rounded-xl flex items-center justify-center shadow-lg shadow-[#00897b]/20 text-white group-active:scale-95 transition-transform">
+              <Cpu className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-extrabold text-gray-800 mt-2.5">设备监控</span>
+          </div>
+
           {/* 排班管理 */}
           <div
             id="btn_schedule_manage"

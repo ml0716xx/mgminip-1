@@ -14,13 +14,14 @@ import { ReportPage } from './components/ReportPage';
 import { ModePage } from './components/ModePage';
 import { BizReportPage } from './components/BizReportPage';
 import { TianyingSimPage } from './components/TianyingSimPage';
+import { DeviceMonitorPage } from './components/DeviceMonitorPage';
 import { AiActivationStatus } from './data/overviewData';
 import type { NoticeTarget } from './data/noticeData';
 import { STATION } from './data/stationData';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, X } from 'lucide-react';
 
-type FullScreenPage = 'mode' | 'report' | 'biz' | 'sim' | null;
+type FullScreenPage = 'mode' | 'report' | 'biz' | 'sim' | 'device' | null;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
@@ -64,6 +65,8 @@ export default function App() {
       setFullScreen('mode');
     } else if (featureId === 'business_report') {
       setFullScreen('biz');
+    } else if (featureId === 'device_monitor') {
+      setFullScreen('device');
     } else {
       // Elegant micro toast notification for unimplemented features
       // 故障报警 / 事件报警 的入口已下线（告警统一在「消息 · 告警消息」），这里不再留 id
@@ -143,6 +146,8 @@ export default function App() {
               onSetAiStatus={handleAiStatusChange}
             />
           );
+        case 'device':
+          return <DeviceMonitorPage onBack={() => setFullScreen(null)} />;
       }
     })();
 
