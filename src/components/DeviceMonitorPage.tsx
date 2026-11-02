@@ -371,8 +371,10 @@ const NoResult: React.FC<{ onReset: () => void }> = ({ onReset }) => (
 );
 
 export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) => {
-  /* 详情用页内状态而不是新路由：返回键一级一级退，符合小程序的心智 */
-  const [detailId, setDetailId] = useState<string | null>(null);
+  /* 详情用页内状态而不是新路由：返回键一级一级退，符合小程序的心智。
+     用栈而不是单个 id —— 从储能柜点进 PCS，返回要回到柜，不是直接掉回列表。 */
+  const [detailStack, setDetailStack] = useState<string[]>([]);
+  const detailId = detailStack.length ? detailStack[detailStack.length - 1] : null;
   const [active, setActive] = useState<DeviceCategoryKey>('all');
   /* 每进一次详情重新取一次时间：切设备 / 返回再进都刷新，跟真实拉数一致 */
   const refreshAt = useMemo(() => formatDeviceRefreshTime(), [detailId]);
@@ -391,9 +393,19 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
   );
   const filtering = keyword.trim() !== '' || typeFilter !== 'all';
 
+  /* 从列表进详情时栈是空的，直接压一层；从下属设备进来则叠在上一级之上 */
   const openDevice = (id: string) => {
-    setDetailId(id);
+    setDetailStack((s) => [...s, id]);
     setDetailTab(findDevice(id)?.metrics?.length ? 'metric' : 'latest');
+    setCopied(false);
+  };
+
+  /* 返回退一层：还在栈里就回上一级设备，退空了才回列表。页签跟着上一级重置 */
+  const backOneLevel = () => {
+    const next = detailStack.slice(0, -1);
+    const prevId = next[next.length - 1];
+    setDetailStack(next);
+    setDetailTab(prevId && findDevice(prevId)?.metrics?.length ? 'metric' : 'latest');
     setCopied(false);
   };
 
@@ -430,7 +442,7 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-white border-b border-gray-100 shrink-0">
           <button
-            onClick={() => setDetailId(null)}
+            onClick={backOneLevel}
             id="btn_device_detail_back"
             className="p-1 text-gray-600 active:text-emerald-500 shrink-0"
           >
