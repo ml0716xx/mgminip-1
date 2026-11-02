@@ -161,28 +161,22 @@ const split3 = (total: number, a: number, b: number): [number, number, number] =
   +(total - a - b).toFixed(1),
 ];
 
-/* ------------------------------------------------------------------ EMS */
+/* ------------------------------------------------------------ EMS 网关 1 台 */
+/**
+ * 网关点表就两项（现场截图口径）：信号强度、并离网模式。
+ * 站级功率那些量不挂在网关身上 —— 网关只回答「通得好不好、现在并网还是离网」。
+ */
 const EMS_DEVICES: DeviceSeed[] = [
   {
     id: 'ems-1',
     type: 'ems',
-    name: '站控 EMS',
-    spec: 'MicroGrid-EMS · 通信规约 Modbus TCP',
+    name: 'EMS 网关',
+    spec: '站控网关 · Modbus TCP',
     conn: 'online',
     faultCount: 0,
     points: [
-      { label: '运行模式', value: '自动 · AI 策略' },
-      { label: '通信规约', value: 'Modbus TCP' },
-      { label: '并网点有功功率', value: `${one(ENERGY_FLOW.gridImport)} kW` },
-      { label: '光伏发电功率', value: `${one(ENERGY_FLOW.pvGeneration)} kW` },
-      { label: '储能功率', value: `−${one(ENERGY_FLOW.essCharge)} kW` },
-      { label: '负荷功率', value: `${one(ENERGY_FLOW.loadConsumption)} kW` },
-      { label: '今日发电量', value: `${one(TODAY_SUPPLY.pvGeneration)} kWh` },
-      { label: '今日用电量', value: `${one(TODAY_CONSUMPTION.loadConsumption)} kWh` },
-      { label: '今日充电量', value: `${one(TODAY_CONSUMPTION.essCharge)} kWh` },
-      { label: '今日放电量', value: `${one(TODAY_SUPPLY.essDischarge)} kWh` },
-      { label: '接入设备数', value: '35 台' },
-      { label: '通信中断设备', value: '0 台' },
+      { label: '信号强度', value: '100 %' },
+      { label: '并离网模式', value: '0' },
     ],
   },
 ];
@@ -206,11 +200,12 @@ const INVERTER_STRINGS: InverterString[] = [
   { name: '6# 组串', voltage: 701.2, current: 6.9, divergence: 3.87 },
 ];
 
-/** 集中式逆变器交流侧按 400V 线电压算电流 */
-const INV_AC_VOLTAGE = 400.2;
-const invAcCurrent = (ENERGY_FLOW.pvGeneration * 1000) / (Math.sqrt(3) * INV_AC_VOLTAGE);
-/** 直流侧：112 串电压并联，总电流 = 各串电流之和 ≈ 112 × 均值 6.4A */
-const INV_DC_CURRENT = +(6.4 * INVERTER_STRING_TOTAL).toFixed(1);
+/** 三相相电压：A 相略高、C 相略低，跟现场读数一个样子 */
+const INV_PHASE_V = [231.4, 230.8, 230.2];
+/** 相电流 = 有功 / 3 / 相电压 */
+const invPhaseCurrent = (v: number) => +((ENERGY_FLOW.pvGeneration * 1000) / 3 / v).toFixed(1);
+/** 逆变器额定有功 */
+const INVERTER_RATED_KW = 1600;
 
 const INVERTER_DEVICES: DeviceSeed[] = [
   {
@@ -220,19 +215,26 @@ const INVERTER_DEVICES: DeviceSeed[] = [
     spec: '集中式 · 1.6 MW',
     conn: 'online',
     faultCount: 0,
+    /* 点表照现场截图：频率 / 三相电压电流 / 功率 / 限定值 / 组串离散率 / 直流输入电压 */
     points: [
-      { label: '发电功率', value: `${one(ENERGY_FLOW.pvGeneration)} kW` },
-      { label: '今日发电量', value: `${one(TODAY_SUPPLY.pvGeneration)} kWh` },
-      { label: '当年累计发电量', value: `${BUSINESS_REPORT.pvAnalysis.yearGenWan.toFixed(2)} 万kWh` },
-      { label: '转换效率', value: '98.6 %' },
-      { label: '直流电压', value: `${one(INVERTER_STRINGS[0].voltage)} V` },
-      { label: '直流电流', value: `${one(INV_DC_CURRENT)} A` },
-      { label: '交流线电压', value: `${one(INV_AC_VOLTAGE)} V` },
-      { label: '交流电流', value: `${one(invAcCurrent)} A` },
-      { label: '电网频率', value: '50.02 Hz' },
-      { label: '功率因数', value: '0.998' },
-      { label: '模块温度', value: '46.3 ℃' },
-      { label: '今日运行时长', value: '8.4 h' },
+      { label: '交流输出频率', value: '50.05 Hz' },
+      { label: 'C相交流输出电压', value: `${INV_PHASE_V[2].toFixed(1)} V` },
+      { label: 'B相交流输出电压', value: `${INV_PHASE_V[1].toFixed(1)} V` },
+      { label: 'A相交流输出电压', value: `${INV_PHASE_V[0].toFixed(1)} V` },
+      { label: '有功功率', value: `${one(ENERGY_FLOW.pvGeneration)} kW` },
+      { label: '有功功率限定值', value: `${big(INVERTER_RATED_KW)} kW` },
+      { label: '组串1离散率', value: `${INVERTER_STRINGS[0].divergence.toFixed(2)} %` },
+      { label: '无功功率', value: '-2.6 kVar' },
+      { label: '组串2离散率', value: `${INVERTER_STRINGS[1].divergence.toFixed(2)} %` },
+      { label: 'B相交流输出电流', value: `${invPhaseCurrent(INV_PHASE_V[1]).toFixed(1)} A` },
+      { label: 'A相交流输出电流', value: `${invPhaseCurrent(INV_PHASE_V[0]).toFixed(1)} A` },
+      { label: 'C相交流输出电流', value: `${invPhaseCurrent(INV_PHASE_V[2]).toFixed(1)} A` },
+      { label: '现在功率', value: `${one(ENERGY_FLOW.pvGeneration)} kVA` },
+      { label: '直流输入电压2', value: `${INVERTER_STRINGS[2].voltage.toFixed(1)} V` },
+      { label: '直流输入电压1', value: `${INVERTER_STRINGS[0].voltage.toFixed(1)} V` },
+      { label: '输出功率', value: `${one(ENERGY_FLOW.pvGeneration)} kW` },
+      { label: '调节无功电量', value: '0.0 kVarh' },
+      { label: '功率因数', value: '1.000' },
     ],
     strings: INVERTER_STRINGS,
     stringTotal: INVERTER_STRING_TOTAL,
@@ -255,6 +257,9 @@ const ESS_DISCHARGE_HEAD = [112.4, 108.6, 106.2];
 const ESS_MAX_TEMP = [32.5, 33.1, 32.8, 34.2];
 const ESS_TEMP_SPREAD = [1.1, 1.3, 1.0, 1.4];
 const ESS_SOH = [99.2, 98.8, 99.0, 98.5];
+/** 累计充放电量：投运以来，四台各有先后 */
+const ESS_CUM_CHARGE = [78420, 77930, 78110, 77580];
+const ESS_CUM_DISCHARGE = [71860, 71340, 71520, 71020];
 
 const essSoc = [...ESS_SOC_HEAD, +(ENERGY_FLOW.soc * 4 - sum(ESS_SOC_HEAD)).toFixed(1)];
 const essPower = [...ESS_POWER_HEAD, +(ENERGY_FLOW.essCharge - sum(ESS_POWER_HEAD)).toFixed(1)];
@@ -275,19 +280,26 @@ const ESS_DEVICES: DeviceSeed[] = essSoc.map((soc, i) => {
     spec: '260 kWh / 125 kW · PCS 一体柜',
     conn: 'online',
     faultCount: 0,
+    /* 点表照现场截图：状态 / 通讯与故障 / 最大可充功率 / 剩余可充放容量 / 累计与今日电量 */
     points: [
-      { label: '储能状态', value: '充电' },
-      { label: '报警状态', value: '正常' },
-      { label: '储能SOC', value: `${soc.toFixed(1)} %` },
-      /* 充电记负值，和截图的 −100kW 一个口径 */
-      { label: '当前功率', value: `${(-essPower[i]).toFixed(1)} kW` },
-      { label: '今日充电量', value: `${essCharge[i].toFixed(1)} kWh` },
-      { label: '今日放电量', value: `${essDischarge[i].toFixed(1)} kWh` },
-      { label: '系统可充电量', value: `${chargeable.toFixed(1)} kWh` },
-      { label: '系统可放电量', value: `${dischargeable.toFixed(1)} kWh` },
-      { label: '最高电芯温度', value: `${ESS_MAX_TEMP[i].toFixed(1)} ℃` },
-      { label: '最低电芯温度', value: `${(ESS_MAX_TEMP[i] - ESS_TEMP_SPREAD[i]).toFixed(1)} ℃` },
-      { label: '电池簇SOH', value: `${ESS_SOH[i].toFixed(1)} %` },
+      { label: '工作状态', value: '充电' },
+      { label: '剩余可充电容量', value: `${chargeable.toFixed(2)} kWh` },
+      { label: 'PCS 通讯错误状态', value: '通讯正常' },
+      { label: '总有功功率', value: `${(-essPower[i]).toFixed(1)} kW` },
+      { label: '电池簇(柜)最大可充电功率', value: '125.0 kW' },
+      { label: '总无功功率', value: '-1.2 kVar' },
+      { label: '剩余可放电容量', value: `${dischargeable.toFixed(2)} kWh` },
+      { label: 'PCS 故障状态', value: '正常' },
+      { label: 'BMS 通讯错误状态', value: '通讯正常' },
+      { label: '门限状态', value: '门关闭' },
+      { label: '总充电量', value: `${big(ESS_CUM_CHARGE[i])} kWh` },
+      { label: '总放电量', value: `${big(ESS_CUM_DISCHARGE[i])} kWh` },
+      { label: '系统故障', value: '正常' },
+      { label: '工作模式', value: '并网恒流' },
+      { label: '今日放电总电量', value: `${essDischarge[i].toFixed(1)} kWh` },
+      { label: '系统SOC', value: `${soc.toFixed(1)} %` },
+      { label: '今日充电总电量', value: `${essCharge[i].toFixed(1)} kWh` },
+      { label: '防雷器', value: '正常' },
     ],
   };
 });
@@ -767,17 +779,16 @@ const METRIC_SPEC: Partial<
     {
       layout: 'kv',
       labels: [
-        '储能状态',
-        '报警状态',
-        '储能SOC',
-        '当前功率',
-        '今日充电量',
-        '今日放电量',
-        '系统可充电量',
-        '系统可放电量',
-        '最高电芯温度',
-        '最低电芯温度',
-        '电池簇SOH',
+        '工作状态',
+        '系统故障',
+        '系统SOC',
+        '总有功功率',
+        '今日充电总电量',
+        '今日放电总电量',
+        '剩余可充电容量',
+        '剩余可放电容量',
+        'PCS 故障状态',
+        '工作模式',
       ],
     },
   ],
@@ -804,17 +815,34 @@ const METRIC_SPEC: Partial<
   ],
 };
 
+/** 指标里的字段在点表里另叫一个名字时，做个别名 */
+const METRIC_ALIAS: Partial<Record<DeviceTypeKey, Record<string, string>>> = {
+  inverter: { 发电功率: '有功功率' },
+};
+
+/** 点表里没有、但指标页要看的值（都由概览快照算得出来，仍是一份数据） */
+const METRIC_EXTRA: Partial<Record<DeviceTypeKey, Record<string, string>>> = {
+  inverter: {
+    今日发电量: `${one(TODAY_SUPPLY.pvGeneration)} kWh`,
+    当年累计发电量: `${BUSINESS_REPORT.pvAnalysis.yearGenWan.toFixed(2)} 万kWh`,
+  },
+};
+
 /** 按 label 从点表里取指标；同一个数不会在文件里出现两份 */
 const withMetrics = (list: DeviceItem[]): DeviceItem[] =>
   list.map((d) => {
     const spec = METRIC_SPEC[d.type];
     if (!spec) return d;
+    const resolve = (label: string) => {
+      const alias = METRIC_ALIAS[d.type]?.[label] ?? label;
+      const p = d.points.find((x) => x.label === alias);
+      if (p) return { label, value: p.value };
+      return { label, value: METRIC_EXTRA[d.type]?.[label] ?? '--' };
+    };
     const sections: MetricSection[] = spec.map((s) => ({
       title: s.title,
       layout: s.layout,
-      items: s.labels.map(
-        (label) => d.points.find((p) => p.label === label) ?? { label, value: '--' },
-      ),
+      items: s.labels.map(resolve),
     }));
     return { ...d, metrics: sections };
   });
@@ -880,17 +908,6 @@ export const queryDevices = (o: {
     return d.name.toLowerCase().includes(kw) || d.sn.toLowerCase().includes(kw);
   });
 };
-
-/* EMS 点表里的「接入设备数 / 通信中断设备」等台账拼完才有答案，回填，不写死 */
-(() => {
-  const ems = EMS_DEVICES[0];
-  const patch = (label: string, value: string) => {
-    const p = ems.points.find((x) => x.label === label);
-    if (p) p.value = value;
-  };
-  patch('接入设备数', `${DEVICE_LIST.length} 台`);
-  patch('通信中断设备', `${DEVICE_LIST.filter((d) => d.conn === 'offline').length} 台`);
-})();
 
 /** 概览：全部由台账派生，不另外维护一份数字 */
 export const DEVICE_SUMMARY = {

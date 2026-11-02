@@ -215,18 +215,18 @@ const MetricView: React.FC<{ device: DeviceItem; onOpenGun: (id: string) => void
           {sec.title && <span className="text-[11px] font-black text-gray-800 block mb-1">{sec.title}</span>}
           <div className="grid grid-cols-2 gap-x-3">
             {sec.items.map((it) => {
-              /* 只有储能的两个状态字段带色点，其余是纯数值 */
+              /* 只有储能的工作状态与系统故障带色点，其余是纯数值 */
               const dot =
-                it.label === '储能状态'
+                it.label === '工作状态'
                   ? it.value === '充电'
                     ? 'bg-sky-500'
                     : it.value === '放电'
                       ? 'bg-amber-500'
                       : 'bg-gray-400'
-                  : it.label === '报警状态'
-                    ? device.faultCount > 0
-                      ? 'bg-red-500'
-                      : 'bg-emerald-500'
+                  : it.label === '系统故障'
+                    ? it.value === '正常'
+                      ? 'bg-emerald-500'
+                      : 'bg-red-500'
                     : null;
               return (
                 <div key={it.label} className="flex items-center justify-between gap-1.5 min-w-0 py-1.5">
@@ -270,7 +270,9 @@ const PointTable: React.FC<{ device: DeviceItem }> = ({ device }) => {
               full ? 'col-span-2' : left ? 'border-r border-r-gray-50' : ''
             }`}
           >
-            <span className="text-[9px] text-gray-400 font-bold truncate">{p.label}</span>
+            <span className="text-[9px] text-gray-400 font-bold leading-snug min-w-0">
+              {p.label}
+            </span>
             <span className="text-[10px] font-black font-mono text-gray-900 whitespace-nowrap shrink-0">
               {p.value}
             </span>
