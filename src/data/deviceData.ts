@@ -136,6 +136,8 @@ export interface DeviceItem {
   stringTotal?: number;
   /** 充电桩专用：下属枪的设备 id，数值只存一份在枪身上 */
   gunIds?: string[];
+  /** 储能柜专用：挂在这台柜下面的 PCS / 电池簇 / 消防 / 空调，同样只存 id */
+  childIds?: string[];
 }
 
 /** 指标页签里的一组：kpi 是三等分大数，kv 是两列标签-数值 */
@@ -301,6 +303,14 @@ const ESS_DEVICES: DeviceSeed[] = essSoc.map((soc, i) => {
       { label: '今日充电总电量', value: `${essCharge[i].toFixed(1)} kWh` },
       { label: '防雷器', value: '正常' },
     ],
+    /* 一台柜是一个整体：PCS、两簇、消防、空调都挂在柜下面，跟充电桩带枪一个关系 */
+    childIds: [
+      `pcs-${i + 1}`,
+      `battery-${i + 1}-1`,
+      `battery-${i + 1}-2`,
+      `fire-${i + 1}`,
+      `hvac-${i + 1}`,
+    ],
   };
 });
 
@@ -375,38 +385,48 @@ const BATTERY_DEVICES: DeviceSeed[] = essSoc.flatMap((soc, i) =>
   }),
 );
 
-/* ------------------------------------------------- 储能空调 / 储能消防 各 2 台 */
-/** 两个储能舱，每舱一台空调、一套消防 */
-const HVAC_DEVICES: DeviceSeed[] = [1, 2].map((n) => ({
+/* ---------------------------------------------- 储能空调 / 储能消防 各 4 台 */
+/**
+ * 柜式一体机：一台柜自带一套温控和一套消防，
+ * 所以是一柜一台，跟着 childIds 挂在柜下面，而不是按「舱」算。
+ */
+const HVAC_TEMP = [
+  ['26.4 ℃', '18.6 ℃', '780 rpm', '5.2 kW'],
+  ['26.9 ℃', '18.9 ℃', '800 rpm', '5.4 kW'],
+  ['27.1 ℃', '19.2 ℃', '820 rpm', '5.6 kW'],
+  ['27.6 ℃', '19.5 ℃', '840 rpm', '5.8 kW'],
+];
+const HVAC_DEVICES: DeviceSeed[] = [1, 2, 3, 4].map((n) => ({
   id: `hvac-${n}`,
   type: 'hvac',
-  name: `储能舱-${n}# 空调`,
-  spec: '5 kW 一体式 · 舱内温控',
+  name: `储能柜-${n}# 空调`,
+  spec: '5 kW 一体式 · 柜内温控',
   conn: 'online',
   faultCount: 0,
   points: [
     { label: '运行状态', value: '制冷' },
-    { label: '回风温度', value: n === 1 ? '26.4 ℃' : '27.1 ℃' },
-    { label: '送风温度', value: n === 1 ? '18.6 ℃' : '19.2 ℃' },
+    { label: '回风温度', value: HVAC_TEMP[n - 1][0] },
+    { label: '送风温度', value: HVAC_TEMP[n - 1][1] },
     { label: '设定温度', value: '25.0 ℃' },
     { label: '压缩机状态', value: '运行' },
-    { label: '风机转速', value: n === 1 ? '780 rpm' : '820 rpm' },
-    { label: '制冷量', value: n === 1 ? '5.2 kW' : '5.6 kW' },
+    { label: '风机转速', value: HVAC_TEMP[n - 1][2] },
+    { label: '制冷量', value: HVAC_TEMP[n - 1][3] },
     { label: '告警', value: '无' },
   ],
 }));
 
-const FIRE_DEVICES: DeviceSeed[] = [1, 2].map((n) => ({
+const FIRE_TEMP = ['26.3 ℃', '26.7 ℃', '27.0 ℃', '27.4 ℃'];
+const FIRE_DEVICES: DeviceSeed[] = [1, 2, 3, 4].map((n) => ({
   id: `fire-${n}`,
   type: 'fire',
-  name: `储能舱-${n}# 消防`,
-  spec: '七氟丙烷 · 烟感 / 温感 / 可燃气体',
+  name: `储能柜-${n}# 消防`,
+  spec: '全氟己酮 · 烟感 / 温感 / 可燃气体',
   conn: 'online',
   faultCount: 0,
   points: [
     { label: '运行状态', value: '正常' },
     { label: '烟感', value: '无火警' },
-    { label: '温感', value: n === 1 ? '26.3 ℃' : '27.0 ℃' },
+    { label: '温感', value: FIRE_TEMP[n - 1] },
     { label: '可燃气体', value: '0 ppm' },
     { label: 'H₂ 浓度', value: '0 ppm' },
     { label: '灭火装置', value: '就绪' },
@@ -875,9 +895,22 @@ export const DEVICE_TABS: { key: DeviceCategoryKey; label: string }[] = [
   { key: 'charger', label: '充电桩' },
 ];
 
-/** 某个 tab 下的设备，「全部」不筛 */
+/**
+ * 下属设备（充电枪、PCS、电池簇、消防、空调）的 id 集合。
+ * 它们挂在整机下面，分类 tab 不再单列，只在「全部」里作为台账条目出现。
+ */
+const CHILD_IDS = new Set<string>();
+DEVICE_LIST.forEach((d) => {
+  d.childIds?.forEach((id) => CHILD_IDS.add(id));
+  d.gunIds?.forEach((id) => CHILD_IDS.add(id));
+});
+export const isSubDevice = (id: string) => CHILD_IDS.has(id);
+
+/** 某个 tab 下的设备：「全部」是全量台账，其余 tab 只列整机 */
 export const devicesInCategory = (k: DeviceCategoryKey): DeviceItem[] =>
-  k === 'all' ? DEVICE_LIST : DEVICE_LIST.filter((d) => TYPE_CATEGORY[d.type] === k);
+  k === 'all'
+    ? DEVICE_LIST
+    : DEVICE_LIST.filter((d) => TYPE_CATEGORY[d.type] === k && !CHILD_IDS.has(d.id));
 
 /** 筛选面板用的类型清单：只列台账里真实有的类型，顺序照台账 */
 export const DEVICE_TYPE_OPTIONS = (() => {

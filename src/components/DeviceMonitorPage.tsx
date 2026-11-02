@@ -183,10 +183,7 @@ const DetailTabs: React.FC<{ active: 'metric' | 'latest'; onChange: (k: 'metric'
  *   kv  —— 两列「标签 - 数值」（储能 11 项、充电桩 6 项、充电枪 8 项）
  * 数值全部来自点表，和「最新数据」看到的是同一份。
  */
-const MetricView: React.FC<{ device: DeviceItem; onOpenGun: (id: string) => void }> = ({
-  device,
-  onOpenGun,
-}) => (
+const MetricView: React.FC<{ device: DeviceItem }> = ({ device }) => (
   <div className="space-y-3">
     {device.metrics?.map((sec, si) =>
       sec.layout === 'kpi' ? (
@@ -245,7 +242,6 @@ const MetricView: React.FC<{ device: DeviceItem; onOpenGun: (id: string) => void
       ),
     )}
     {device.strings && <StringSection device={device} />}
-    {device.gunIds && <GunSection gunIds={device.gunIds} onOpen={onOpenGun} />}
   </div>
 );
 
@@ -313,28 +309,42 @@ const StringSection: React.FC<{ device: DeviceItem }> = ({ device }) =>
     </div>
   ) : null;
 
-/** 充电桩下属的枪：数值都在枪自己的详情里，这里只做入口 */
-const GunSection: React.FC<{ gunIds: string[]; onOpen: (id: string) => void }> = ({ gunIds, onOpen }) => {
-  const guns = gunIds.map((id) => findDevice(id)).filter(Boolean) as DeviceItem[];
-  if (guns.length === 0) return null;
+/**
+ * 下属设备：充电桩带枪、储能柜带 PCS / 电池簇 / 消防 / 空调，同一套入口。
+ * 数值都在子设备自己的页面上，这里只给「是谁、现在什么状态」。
+ */
+const ChildSection: React.FC<{ title: string; ids: string[]; onOpen: (id: string) => void }> = ({
+  title,
+  ids,
+  onOpen,
+}) => {
+  const kids = ids.map((id) => findDevice(id)).filter(Boolean) as DeviceItem[];
+  if (kids.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-xs space-y-1">
-      <span className="text-[11px] font-black text-gray-800 block mb-1">下属充电枪</span>
-      {guns.map((g) => {
-        const state = g.points.find((p) => p.label === '枪状态')?.value ?? '--';
+    <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-xs">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-black text-gray-800">{title}</span>
+        <span className="text-[9px] text-gray-400 font-bold">{kids.length} 台</span>
+      </div>
+      {kids.map((k) => {
+        const { icon: Icon, cls } = TYPE_ICON[k.type];
+        const state = k.points[0]?.value ?? '--';
         return (
           <div
-            key={g.id}
-            id={`gun_link_${g.id}`}
-            onClick={() => onOpen(g.id)}
-            className="flex items-center justify-between gap-2 py-1.5 border-b border-gray-50 last:border-0 active:opacity-60"
+            key={k.id}
+            id={`child_link_${k.id}`}
+            onClick={() => onOpen(k.id)}
+            className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0 active:opacity-60"
           >
-            <span className="text-[10px] font-black text-gray-800 truncate">{g.name}</span>
-            <span className="flex items-center gap-1 shrink-0">
-              <span className="text-[9px] text-gray-400 font-bold">{state}</span>
-              <ChevronRight className="w-3 h-3 text-gray-300" />
+            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${cls}`}>
+              <Icon className="w-3 h-3" />
+            </div>
+            <span className="text-[10px] font-black text-gray-800 truncate flex-1 min-w-0">{k.name}</span>
+            <span className="text-[9px] text-gray-400 font-bold shrink-0">
+              {DEVICE_TYPE_LABEL[k.type]} · {state}
             </span>
+            <ChevronRight className="w-3 h-3 text-gray-300 shrink-0" />
           </div>
         );
       })}
@@ -483,13 +493,21 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
               <>
                 <DetailTabs active={detailTab} onChange={setDetailTab} />
                 {detailTab === 'metric' ? (
-                  <MetricView device={detail} onOpenGun={openDevice} />
+                  <MetricView device={detail} />
                 ) : (
                   <PointTable device={detail} />
                 )}
               </>
             ) : (
               <PointTable device={detail} />
+            )}
+
+            {/* 下属设备常驻：切哪个页签都在，柜/桩是个整体的这层关系不能藏起来 */}
+            {detail.childIds && (
+              <ChildSection title="下属设备" ids={detail.childIds} onOpen={openDevice} />
+            )}
+            {detail.gunIds && (
+              <ChildSection title="下属充电枪" ids={detail.gunIds} onOpen={openDevice} />
             )}
           </div>
         </div>
