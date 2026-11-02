@@ -10,7 +10,7 @@
  */
 
 import React, { useState } from 'react';
-import { ChevronLeft, Zap, Battery, Plug, Gauge, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Zap, Battery, Plug, Gauge } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DEVICE_CATEGORIES,
@@ -33,6 +33,21 @@ const CATEGORY_ICON: Record<DeviceCategoryKey, { icon: React.ElementType; cls: s
   meter: { icon: Gauge, cls: 'bg-slate-100 text-slate-600' },
 };
 
+const CATEGORY_LABEL: Record<DeviceCategoryKey, string> = {
+  inverter: '逆变器',
+  ess: '储能',
+  charger: '充电桩',
+  meter: '电表',
+};
+
+/** tab：全部 + 四个分类 */
+type TabKey = 'all' | DeviceCategoryKey;
+
+/** 展平成一维，供「全部」使用；每条带上自己属于哪一类 */
+const ALL_DEVICES = DEVICE_CATEGORIES.flatMap((c) =>
+  c.devices.map((device) => ({ device, category: c.key })),
+);
+
 /** 状态徽标：圆点 + 文案，颜色只表达运行状态，不表达设备类别 */
 const StatusPill: React.FC<{ status: DeviceItem['status'] }> = ({ status }) => {
   const meta = DEVICE_STATUS_META[status];
@@ -46,10 +61,12 @@ const StatusPill: React.FC<{ status: DeviceItem['status'] }> = ({ status }) => {
   );
 };
 
-const DeviceCard: React.FC<{ device: DeviceItem; category: DeviceCategoryKey }> = ({
-  device,
-  category,
-}) => {
+const DeviceCard: React.FC<{
+  device: DeviceItem;
+  category: DeviceCategoryKey;
+  /** 「全部」里混着四类设备，规格前带一句分类名，否则分不清这是台什么 */
+  showCategory?: boolean;
+}> = ({ device, category, showCategory }) => {
   const { icon: Icon, cls } = CATEGORY_ICON[category];
   const isAlarm = device.status === 'alarm';
 
@@ -69,7 +86,7 @@ const DeviceCard: React.FC<{ device: DeviceItem; category: DeviceCategoryKey }> 
             <StatusPill status={device.status} />
           </div>
           <span className="text-[9px] text-gray-400 font-bold block truncate mt-0.5">
-            {device.spec}
+            {showCategory ? `${CATEGORY_LABEL[category]} · ${device.spec}` : device.spec}
           </span>
         </div>
       </div>
@@ -116,8 +133,9 @@ const EmptyDeviceList: React.FC<{ label: string; category: DeviceCategoryKey }> 
 };
 
 export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) => {
-  const [active, setActive] = useState<DeviceCategoryKey>('inverter');
-  const current = DEVICE_CATEGORIES.find((c) => c.key === active)!;
+  /* 默认落在「全部」：先看见站里一共有哪些设备，再按类往下筛 */
+  const [active, setActive] = useState<TabKey>('all');
+  const current = DEVICE_CATEGORIES.find((c) => c.key === active) ?? DEVICE_CATEGORIES[0];
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -132,18 +150,13 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
 
       <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
         <div className="px-3 pt-2.5 pb-6 space-y-3">
-          {/* 概览：三个数都由设备列表派生 */}
+          {/* 概览：两个数都由设备列表派生。告警台数与告警明细不在这里 ——
+              告警统一走「消息 · 告警消息」，设备页只回答「有多少台、通不通」 */}
           <div className="bg-white rounded-2xl border border-gray-100 p-3.5 shadow-xs">
-            <div className="grid grid-cols-3">
+            <div className="grid grid-cols-2">
               {[
                 { label: '设备总数', value: DEVICE_SUMMARY.total, unit: '台', tone: 'text-gray-900' },
                 { label: '在线', value: DEVICE_SUMMARY.online, unit: '台', tone: 'text-emerald-600' },
-                {
-                  label: '告警',
-                  value: DEVICE_SUMMARY.alarm,
-                  unit: '台',
-                  tone: DEVICE_SUMMARY.alarm > 0 ? 'text-red-500' : 'text-gray-900',
-                },
               ].map((it, i) => (
                 <div
                   key={it.label}
@@ -159,32 +172,33 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
                 </div>
               ))}
             </div>
-            {DEVICE_SUMMARY.alarm > 0 && (
-              <div className="mt-2.5 pt-2.5 border-t border-gray-50 flex items-center gap-1.5">
-                <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
-                <span className="text-[9px] text-red-500 font-bold truncate">
-                  并网计量电表 C 相电压越限（246.8 V），仍在持续
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* 分类 tab：四个分类横向等分，带台数 */}
-          <div className="grid grid-cols-4 rounded-xl bg-white border border-gray-100 p-1">
-            {DEVICE_CATEGORIES.map((c) => {
+          {/* 分类 tab：全部 + 四类，横向五等分，带台数 */}
+          <div className="grid grid-cols-5 rounded-xl bg-white border border-gray-100 p-1">
+            {(
+              [
+                { key: 'all' as const, label: '全部', count: DEVICE_SUMMARY.total },
+                ...DEVICE_CATEGORIES.map((c) => ({
+                  key: c.key,
+                  label: c.label,
+                  count: c.devices.length,
+                })),
+              ] as const
+            ).map((c) => {
               const isActive = active === c.key;
               return (
                 <button
                   key={c.key}
                   id={`device_tab_${c.key}`}
                   onClick={() => setActive(c.key)}
-                  className={`py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
+                  className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-0.5 ${
                     isActive ? 'text-emerald-600 bg-emerald-50/60' : 'text-gray-400'
                   }`}
                 >
                   {c.label}
-                  <span className={`text-[9px] font-mono ${isActive ? 'text-emerald-500' : 'text-gray-400'}`}>
-                    {c.devices.length}
+                  <span className={`text-[8px] font-mono ${isActive ? 'text-emerald-500' : 'text-gray-400'}`}>
+                    {c.count}
                   </span>
                 </button>
               );
@@ -201,7 +215,11 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
               transition={{ duration: 0.18 }}
               className="space-y-2.5"
             >
-              {current.devices.length === 0 ? (
+              {active === 'all' ? (
+                ALL_DEVICES.map(({ device, category }) => (
+                  <DeviceCard key={device.id} device={device} category={category} showCategory />
+                ))
+              ) : current.devices.length === 0 ? (
                 <EmptyDeviceList label={current.label} category={current.key} />
               ) : (
                 current.devices.map((d) => (
