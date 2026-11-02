@@ -136,10 +136,8 @@ const DeviceCard: React.FC<{ device: DeviceItem; onOpen: () => void }> = ({ devi
             <span className="text-[12px] font-black text-gray-900 truncate">{device.name}</span>
             <DeviceState deviceId={device.id} conn={device.conn} faultCount={device.faultCount} />
           </div>
-          <span className="text-[9px] text-gray-400 font-bold block truncate mt-0.5">
-            {DEVICE_TYPE_LABEL[device.type]} · {device.spec}
-          </span>
-          <span className="text-[9px] text-gray-400 font-mono font-bold block truncate mt-0.5">
+          {/* 列表只要名称和 SN：型号规格在详情页看，35 台堆在卡上反而更难扫 */}
+          <span className="text-[9px] text-gray-400 font-mono font-bold block truncate mt-1">
             SN {device.sn}
           </span>
         </div>
