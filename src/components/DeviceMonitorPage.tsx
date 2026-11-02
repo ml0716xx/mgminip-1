@@ -489,8 +489,6 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
             ) : (
               <PointTable device={detail} />
             )}
-
-            <p className="text-[9px] text-gray-400 text-center pt-1">{DEVICE_DATA_NOTE}</p>
           </div>
         </div>
       </div>
