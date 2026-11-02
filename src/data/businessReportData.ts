@@ -109,7 +109,9 @@ export const BUSINESS_REPORT: BusinessReportData = {
   inverterCount: 1,
   essCapacity: 1.04,
   essCount: 4,
-  evCount: 0,
+  /* 两台 V2G 双向桩，本月未充放电 —— 与设备监控的充电桩台账同源，
+     1.3 节的充电量 0、收益 -- 就是因为这两台一直闲着 */
+  evCount: 2,
   totalRevenueWan: 7.51,
   pvRevenueWan: 6.98,
   evRevenueYuan: 0,
