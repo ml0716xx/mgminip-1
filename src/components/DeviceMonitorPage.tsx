@@ -149,6 +149,108 @@ const DeviceCard: React.FC<{ device: DeviceItem; onOpen: () => void }> = ({ devi
   );
 };
 
+/** 详情页的两个页签：指标在前、最新数据在后（只有四类设备有指标） */
+const DetailTabs: React.FC<{ active: 'metric' | 'latest'; onChange: (k: 'metric' | 'latest') => void }> = ({
+  active,
+  onChange,
+}) => (
+  <div className="flex items-center gap-5 border-b border-gray-200 px-1">
+    {(
+      [
+        { key: 'metric' as const, label: '指标' },
+        { key: 'latest' as const, label: '最新数据' },
+      ]
+    ).map((t) => {
+      const on = active === t.key;
+      return (
+        <button
+          key={t.key}
+          id={`device_detail_tab_${t.key}`}
+          onClick={() => onChange(t.key)}
+          className={`relative pb-1.5 pt-0.5 text-[11px] font-black transition-colors ${
+            on ? 'text-emerald-600' : 'text-gray-400'
+          }`}
+        >
+          {t.label}
+          {on && <span className="absolute left-0 -bottom-px h-0.5 w-full bg-emerald-500 rounded-full" />}
+        </button>
+      );
+    })}
+  </div>
+);
+
+/**
+ * 指标页签：按业务给的三张截图的版式
+ *   kpi —— 三等分大数（逆变器的三个发电指标）
+ *   kv  —— 两列「标签 - 数值」（储能 11 项、充电桩 6 项、充电枪 8 项）
+ * 数值全部来自点表，和「最新数据」看到的是同一份。
+ */
+const MetricView: React.FC<{ device: DeviceItem; onOpenGun: (id: string) => void }> = ({
+  device,
+  onOpenGun,
+}) => (
+  <div className="space-y-3">
+    {device.metrics?.map((sec, si) =>
+      sec.layout === 'kpi' ? (
+        <div key={si} className="bg-white rounded-2xl border border-gray-100 shadow-xs px-3.5 py-3">
+          <div className="grid grid-cols-3">
+            {sec.items.map((it, i) => {
+              const [num, ...unit] = it.value.split(' ');
+              return (
+                <div key={it.label} className={`min-w-0 ${i > 0 ? 'border-l border-gray-100 pl-2' : ''}`}>
+                  <span className="text-[9px] text-gray-400 font-bold block truncate">{it.label}</span>
+                  <div className="flex items-baseline gap-0.5 mt-1">
+                    <span className="text-[13px] font-black font-mono leading-none text-gray-900">
+                      {num}
+                    </span>
+                    {unit.length > 0 && (
+                      <span className="text-[8px] text-gray-400 font-bold shrink-0">{unit.join(' ')}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div key={si} className="bg-white rounded-2xl border border-gray-100 shadow-xs px-3.5 py-2">
+          {sec.title && <span className="text-[11px] font-black text-gray-800 block mb-1">{sec.title}</span>}
+          <div className="grid grid-cols-2 gap-x-3">
+            {sec.items.map((it) => {
+              /* 只有储能的两个状态字段带色点，其余是纯数值 */
+              const dot =
+                it.label === '储能状态'
+                  ? it.value === '充电'
+                    ? 'bg-sky-500'
+                    : it.value === '放电'
+                      ? 'bg-amber-500'
+                      : 'bg-gray-400'
+                  : it.label === '报警状态'
+                    ? device.faultCount > 0
+                      ? 'bg-red-500'
+                      : 'bg-emerald-500'
+                    : null;
+              return (
+                <div key={it.label} className="flex items-center justify-between gap-1.5 min-w-0 py-1.5">
+                  <span className="text-[10px] text-gray-400 font-bold shrink-0">{it.label}</span>
+                  <span className="text-[11px] font-black font-mono text-gray-900 truncate text-right">
+                    {dot && (
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot} mr-1 align-middle`} />
+                    )}
+                    {it.value}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ),
+    )}
+    {device.strings && <StringSection device={device} />}
+    {device.gunIds && <GunSection gunIds={device.gunIds} onOpen={onOpenGun} />}
+  </div>
+);
+
 /** 最新数据点表：两列，标签左、数值右，跟现场点表一个读法 */
 const PointTable: React.FC<{ device: DeviceItem }> = ({ device }) => {
   /* 整行占满的点（表号）不参与左右列计数，否则后面每一行的分隔线都会错位 */
@@ -266,6 +368,8 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
   const refreshAt = useMemo(() => formatDeviceRefreshTime(), [detailId]);
   const detail = detailId ? findDevice(detailId) : undefined;
   const [copied, setCopied] = useState(false);
+  /* 有指标页的设备默认落在「指标」，其余只有「最新数据」 */
+  const [detailTab, setDetailTab] = useState<'metric' | 'latest'>('latest');
   /* 列表查询：关键词（名称 / SN）+ 类型筛选，两者可以叠加 */
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<DeviceTypeKey | 'all'>('all');
@@ -279,6 +383,7 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
 
   const openDevice = (id: string) => {
     setDetailId(id);
+    setDetailTab(findDevice(id)?.metrics?.length ? 'metric' : 'latest');
     setCopied(false);
   };
 
@@ -373,9 +478,19 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
               </button>
             </div>
 
-            <PointTable device={detail} />
-            {detail.strings && <StringSection device={detail} />}
-            {detail.gunIds && <GunSection gunIds={detail.gunIds} onOpen={openDevice} />}
+            {/* 只有逆变器 / 储能 / 充电桩 / 充电枪有指标页，其余设备直接看最新数据 */}
+            {detail.metrics?.length ? (
+              <>
+                <DetailTabs active={detailTab} onChange={setDetailTab} />
+                {detailTab === 'metric' ? (
+                  <MetricView device={detail} onOpenGun={openDevice} />
+                ) : (
+                  <PointTable device={detail} />
+                )}
+              </>
+            ) : (
+              <PointTable device={detail} />
+            )}
 
             <p className="text-[9px] text-gray-400 text-center pt-1">{DEVICE_DATA_NOTE}</p>
           </div>

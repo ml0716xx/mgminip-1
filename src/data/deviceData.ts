@@ -126,11 +126,23 @@ export interface DeviceItem {
   faultCount: number;
   /** 最新数据点表 */
   points: DevicePoint[];
+  /**
+   * 指标页签（只有逆变器 / 储能 / 充电桩 / 充电枪有）。
+   * 不另写一套数字，全部按 label 从 points 里取，两个页签永远不会打架。
+   */
+  metrics?: MetricSection[];
   /** 逆变器专用：直流侧组串 */
   strings?: InverterString[];
   stringTotal?: number;
   /** 充电桩专用：下属枪的设备 id，数值只存一份在枪身上 */
   gunIds?: string[];
+}
+
+/** 指标页签里的一组：kpi 是三等分大数，kv 是两列标签-数值 */
+export interface MetricSection {
+  title?: string;
+  layout: 'kpi' | 'kv';
+  items: DevicePoint[];
 }
 
 /** SN 统一在出口处按类型编号补齐，各设备字面量里不必逐台手写 */
@@ -737,6 +749,77 @@ const SN_PREFIX: Record<DeviceTypeKey, string> = {
 };
 
 /**
+ * 指标页签的字段，按业务给的三张截图来：
+ *   逆变器 —— 发电功率 / 今日发电量 / 当年累计发电量（三个大数），组串另成一块
+ *   储能   —— 11 个字段，状态带色点
+ *   充电桩 —— 功率达成率 / 充放电量 / 实时与需求功率
+ *   充电枪 —— 车辆 SOC、本次充电量、功率电压电流（实时 vs 需求）
+ * 其余类型（EMS、PCS、电池簇、空调、消防、电表、变压器、辐照仪、负载）不给指标页，
+ * 点表的字段就是它们能说清的全部，多一个页签只是多一次点击。
+ */
+const METRIC_SPEC: Partial<
+  Record<DeviceTypeKey, { title?: string; layout: 'kpi' | 'kv'; labels: string[] }[]>
+> = {
+  inverter: [
+    { layout: 'kpi', labels: ['发电功率', '今日发电量', '当年累计发电量'] },
+  ],
+  ess: [
+    {
+      layout: 'kv',
+      labels: [
+        '储能状态',
+        '报警状态',
+        '储能SOC',
+        '当前功率',
+        '今日充电量',
+        '今日放电量',
+        '系统可充电量',
+        '系统可放电量',
+        '最高电芯温度',
+        '最低电芯温度',
+        '电池簇SOH',
+      ],
+    },
+  ],
+  charger: [
+    {
+      layout: 'kv',
+      labels: ['功率达成率', '今日充电量', '今日放电量', '实时功率', '需求功率', '枪数'],
+    },
+  ],
+  gun: [
+    {
+      layout: 'kv',
+      labels: [
+        '车辆SOC',
+        '本次充电量',
+        '实时功率',
+        '需求功率',
+        '输出电压',
+        '需求电压',
+        '输出电流',
+        '需求电流',
+      ],
+    },
+  ],
+};
+
+/** 按 label 从点表里取指标；同一个数不会在文件里出现两份 */
+const withMetrics = (list: DeviceItem[]): DeviceItem[] =>
+  list.map((d) => {
+    const spec = METRIC_SPEC[d.type];
+    if (!spec) return d;
+    const sections: MetricSection[] = spec.map((s) => ({
+      title: s.title,
+      layout: s.layout,
+      items: s.labels.map(
+        (label) => d.points.find((p) => p.label === label) ?? { label, value: '--' },
+      ),
+    }));
+    return { ...d, metrics: sections };
+  });
+
+/**
  * 没手写 SN 的设备按「类型码 + 该类型序号」补一个，四位数补零。
  * 手写的（五块电表的出厂表号）原样保留。
  */
@@ -752,7 +835,7 @@ const withSn = (seeds: DeviceSeed[]): DeviceItem[] => {
   });
 };
 
-export const DEVICE_LIST: DeviceItem[] = withSn(DEVICE_SEEDS);
+export const DEVICE_LIST: DeviceItem[] = withMetrics(withSn(DEVICE_SEEDS));
 
 export const findDevice = (id: string) => DEVICE_LIST.find((d) => d.id === id);
 
