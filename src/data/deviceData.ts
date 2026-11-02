@@ -56,7 +56,7 @@ export type DeviceTypeKey =
   | 'irradiance'
   | 'load';
 
-/** 标签与顺序都照现场点表：EMS 在最前，负载在最后 */
+/** 台账卡上的类型名 */
 export const DEVICE_TYPE_LABEL: Record<DeviceTypeKey, string> = {
   ems: 'EMS',
   inverter: '逆变器',
@@ -71,6 +71,31 @@ export const DEVICE_TYPE_LABEL: Record<DeviceTypeKey, string> = {
   transformer: '变压器',
   irradiance: '辐照仪',
   load: '负载',
+};
+
+/* -------------------------------------------------------------- 归类 */
+/**
+ * 设备监控只分三组：储能 / 逆变器 / 充电桩，全部在「全部」里也能看到。
+ * 归类按子系统走，不按点表里的叶子类型走 —— 现场说「储能」指的是整套
+ * （柜 + PCS + 簇 + 空调 + 消防），说「充电桩」也带着枪。
+ * EMS / 电表 / 变压器 / 辐照仪 / 负载 属于站级公共设备，只在「全部」里出现。
+ */
+export type DeviceCategoryKey = 'all' | 'ess' | 'inverter' | 'charger';
+
+const TYPE_CATEGORY: Record<DeviceTypeKey, Exclude<DeviceCategoryKey, 'all'> | null> = {
+  ess: 'ess',
+  pcs: 'ess',
+  battery: 'ess',
+  hvac: 'ess',
+  fire: 'ess',
+  inverter: 'inverter',
+  charger: 'charger',
+  gun: 'charger',
+  ems: null,
+  meter: null,
+  transformer: null,
+  irradiance: null,
+  load: null,
 };
 
 /** 一个点：标签 + 已经带单位的数值，页面不再做格式化 */
@@ -93,6 +118,8 @@ export interface DeviceItem {
   id: string;
   type: DeviceTypeKey;
   name: string;
+  /** 设备 SN：出厂编号，报修对账都靠它，详情页可复制 */
+  sn: string;
   /** 一句话说清这台是什么：装在哪、什么规格 */
   spec: string;
   conn: DeviceConn;
@@ -105,6 +132,9 @@ export interface DeviceItem {
   /** 充电桩专用：下属枪的设备 id，数值只存一份在枪身上 */
   gunIds?: string[];
 }
+
+/** SN 统一在出口处按类型编号补齐，各设备字面量里不必逐台手写 */
+type DeviceSeed = Omit<DeviceItem, 'sn'> & { sn?: string };
 
 /* -------------------------------------------------------------- 小工具 */
 const sum = (arr: number[]) => arr.reduce((s, v) => s + v, 0);
@@ -120,7 +150,7 @@ const split3 = (total: number, a: number, b: number): [number, number, number] =
 ];
 
 /* ------------------------------------------------------------------ EMS */
-const EMS_DEVICES: DeviceItem[] = [
+const EMS_DEVICES: DeviceSeed[] = [
   {
     id: 'ems-1',
     type: 'ems',
@@ -170,7 +200,7 @@ const invAcCurrent = (ENERGY_FLOW.pvGeneration * 1000) / (Math.sqrt(3) * INV_AC_
 /** 直流侧：112 串电压并联，总电流 = 各串电流之和 ≈ 112 × 均值 6.4A */
 const INV_DC_CURRENT = +(6.4 * INVERTER_STRING_TOTAL).toFixed(1);
 
-const INVERTER_DEVICES: DeviceItem[] = [
+const INVERTER_DEVICES: DeviceSeed[] = [
   {
     id: 'inv-1',
     type: 'inverter',
@@ -222,7 +252,7 @@ const essDischarge = [
   +(TODAY_SUPPLY.essDischarge - sum(ESS_DISCHARGE_HEAD)).toFixed(1),
 ];
 
-const ESS_DEVICES: DeviceItem[] = essSoc.map((soc, i) => {
+const ESS_DEVICES: DeviceSeed[] = essSoc.map((soc, i) => {
   const chargeable = +((ESS_CAPACITY * (100 - soc)) / 100).toFixed(1);
   const dischargeable = +((ESS_CAPACITY * soc) / 100).toFixed(1);
 
@@ -259,7 +289,7 @@ const ESS_DEVICES: DeviceItem[] = essSoc.map((soc, i) => {
 const PCS_DC_VOLTAGE = [748.2, 742.6, 745.1, 750.4];
 const PCS_IGBT_TEMP = [42.5, 43.1, 42.8, 44.2];
 
-const PCS_DEVICES: DeviceItem[] = essPower.map((p, i) => {
+const PCS_DEVICES: DeviceSeed[] = essPower.map((p, i) => {
   const dcCurrent = +((p * 1000) / PCS_DC_VOLTAGE[i]).toFixed(1);
   const acCurrent = +((p * 1000) / (Math.sqrt(3) * 400.1)).toFixed(1);
 
@@ -292,7 +322,7 @@ const PCS_DEVICES: DeviceItem[] = essPower.map((p, i) => {
  * 一柜两簇。两簇 SOC 取「柜 SOC ± 0.2」，平均正好回到柜值，上下级不会打架。
  * 总电流按「柜功率 / 2 簇 / 簇电压」算。
  */
-const BATTERY_DEVICES: DeviceItem[] = essSoc.flatMap((soc, i) =>
+const BATTERY_DEVICES: DeviceSeed[] = essSoc.flatMap((soc, i) =>
   [0, 1].map((k) => {
     const s = +(soc + (k === 0 ? 0.2 : -0.2)).toFixed(1);
     const voltage = PCS_DC_VOLTAGE[i];
@@ -323,7 +353,7 @@ const BATTERY_DEVICES: DeviceItem[] = essSoc.flatMap((soc, i) =>
 
 /* ------------------------------------------------- 储能空调 / 储能消防 各 2 台 */
 /** 两个储能舱，每舱一台空调、一套消防 */
-const HVAC_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
+const HVAC_DEVICES: DeviceSeed[] = [1, 2].map((n) => ({
   id: `hvac-${n}`,
   type: 'hvac',
   name: `储能舱-${n}# 空调`,
@@ -342,7 +372,7 @@ const HVAC_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
   ],
 }));
 
-const FIRE_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
+const FIRE_DEVICES: DeviceSeed[] = [1, 2].map((n) => ({
   id: `fire-${n}`,
   type: 'fire',
   name: `储能舱-${n}# 消防`,
@@ -373,7 +403,6 @@ const load2Energy = +(TODAY_CONSUMPTION.loadConsumption - LOAD1_ENERGY).toFixed(
  * 分相有功、分相无功都用「总量 − 两相」兜底，三相之和恒等于瞬时总量。
  */
 const meterPoints = (o: {
-  sn?: string;
   power: number;
   voltages: [number, number, number];
   /** A、B 两相有功占总量的大致比例，C 相由总量兜底 */
@@ -395,7 +424,6 @@ const meterPoints = (o: {
     +((pw * 1000) / (v * parseFloat(pf))).toFixed(1);
 
   const rows: DevicePoint[] = [];
-  if (o.sn) rows.push({ label: '表号', value: o.sn, full: true });
 
   rows.push(
     { label: 'A相电压', value: `${o.voltages[0].toFixed(1)} V` },
@@ -424,17 +452,17 @@ const meterPoints = (o: {
   return rows;
 };
 
-const METER_DEVICES: DeviceItem[] = [
+const METER_DEVICES: DeviceSeed[] = [
   {
     id: 'meter-1',
     type: 'meter',
     name: '并网计量电表',
+    /* 表号来自「消息 · 告警消息」那条未恢复告警，不另编 */
+    sn: 'DDZY666-Z-20260115-017',
     spec: '关口总表 · 三相四线',
     conn: 'online',
     faultCount: 0,
     points: meterPoints({
-      /* 表号来自「消息 · 告警消息」那条未恢复告警，不另编 */
-      sn: 'DDZY666-Z-20260115-017',
       power: ENERGY_FLOW.gridImport,
       /* C 相偏高：与「C 相电压越限 + 三相不平衡」同一条现场问题 */
       voltages: [231.4, 230.8, 246.8],
@@ -451,6 +479,7 @@ const METER_DEVICES: DeviceItem[] = [
   {
     id: 'meter-2',
     type: 'meter',
+    sn: 'DDZY666-Z-20260115-021',
     name: '光伏并网电表',
     spec: '光伏并网点 · 三相四线',
     conn: 'online',
@@ -471,6 +500,7 @@ const METER_DEVICES: DeviceItem[] = [
   {
     id: 'meter-3',
     type: 'meter',
+    sn: 'DDZY666-Z-20260115-023',
     name: '储能计量电表',
     spec: '储能并网点 · 双向计量',
     conn: 'online',
@@ -491,6 +521,7 @@ const METER_DEVICES: DeviceItem[] = [
   {
     id: 'meter-4',
     type: 'meter',
+    sn: 'DDZY666-Z-20260115-025',
     name: '1# 厂房负荷电表',
     spec: '生产负荷 · 三相四线',
     conn: 'online',
@@ -511,6 +542,7 @@ const METER_DEVICES: DeviceItem[] = [
   {
     id: 'meter-5',
     type: 'meter',
+    sn: 'DDZY666-Z-20260115-027',
     name: '2# 厂房负荷电表',
     spec: '生产负荷 · 三相四线',
     conn: 'online',
@@ -535,7 +567,7 @@ const METER_DEVICES: DeviceItem[] = [
  * 两台 V2G 双向桩，本月还没插过枪，所以除了「今日放电量 0」全是「--」。
  * 与经营报告 1.3 节「充电量 0、收益 --」同源，不是没做，是真没充。
  */
-const CHARGER_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
+const CHARGER_DEVICES: DeviceSeed[] = [1, 2].map((n) => ({
   id: `charger-${n}`,
   type: 'charger',
   name: `V2G 充电桩-${n}#`,
@@ -553,7 +585,7 @@ const CHARGER_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
   gunIds: [`gun-${n}`],
 }));
 
-const GUN_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
+const GUN_DEVICES: DeviceSeed[] = [1, 2].map((n) => ({
   id: `gun-${n}`,
   type: 'gun',
   name: `V2G 充电桩-${n}# 枪1`,
@@ -575,7 +607,7 @@ const GUN_DEVICES: DeviceItem[] = [1, 2].map((n) => ({
 }));
 
 /* ------------------------------------------------------------- 变压器 1 台 */
-const TRANSFORMER_DEVICES: DeviceItem[] = [
+const TRANSFORMER_DEVICES: DeviceSeed[] = [
   {
     id: 'transformer-1',
     type: 'transformer',
@@ -605,7 +637,7 @@ const TRANSFORMER_DEVICES: DeviceItem[] = [
 ];
 
 /* ------------------------------------------------------------- 辐照仪 1 台 */
-const IRRADIANCE_DEVICES: DeviceItem[] = [
+const IRRADIANCE_DEVICES: DeviceSeed[] = [
   {
     id: 'irradiance-1',
     type: 'irradiance',
@@ -626,7 +658,7 @@ const IRRADIANCE_DEVICES: DeviceItem[] = [
 ];
 
 /* --------------------------------------------------------------- 负载 2 路 */
-const LOAD_DEVICES: DeviceItem[] = [
+const LOAD_DEVICES: DeviceSeed[] = [
   {
     id: 'load-1',
     type: 'load',
@@ -671,7 +703,7 @@ const LOAD_DEVICES: DeviceItem[] = [
 
 /* ------------------------------------------------------------- 台账出口 */
 /** 顺序即现场点表下拉框的顺序，页面按这个顺序往下排 */
-export const DEVICE_LIST: DeviceItem[] = [
+const DEVICE_SEEDS: DeviceSeed[] = [
   ...EMS_DEVICES,
   ...INVERTER_DEVICES,
   ...ESS_DEVICES,
@@ -687,7 +719,84 @@ export const DEVICE_LIST: DeviceItem[] = [
   ...LOAD_DEVICES,
 ];
 
+/** SN 里的类型码，照厂家给设备的编号习惯取：MG-ESS-0001 */
+const SN_PREFIX: Record<DeviceTypeKey, string> = {
+  ems: 'EMS',
+  inverter: 'INV',
+  ess: 'ESS',
+  pcs: 'PCS',
+  battery: 'BAT',
+  hvac: 'HVAC',
+  fire: 'FIRE',
+  meter: 'METER',
+  charger: 'EVC',
+  gun: 'EVG',
+  transformer: 'TR',
+  irradiance: 'IRR',
+  load: 'LD',
+};
+
+/**
+ * 没手写 SN 的设备按「类型码 + 该类型序号」补一个，四位数补零。
+ * 手写的（五块电表的出厂表号）原样保留。
+ */
+const withSn = (seeds: DeviceSeed[]): DeviceItem[] => {
+  const seq: Partial<Record<DeviceTypeKey, number>> = {};
+  return seeds.map((d) => {
+    const n = (seq[d.type] ?? 0) + 1;
+    seq[d.type] = n;
+    return {
+      ...d,
+      sn: d.sn ?? `MG-${SN_PREFIX[d.type]}-${String(n).padStart(4, '0')}`,
+    };
+  });
+};
+
+export const DEVICE_LIST: DeviceItem[] = withSn(DEVICE_SEEDS);
+
 export const findDevice = (id: string) => DEVICE_LIST.find((d) => d.id === id);
+
+/** 四个 tab，顺序就是展示顺序 */
+export const DEVICE_TABS: { key: DeviceCategoryKey; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'ess', label: '储能' },
+  { key: 'inverter', label: '逆变器' },
+  { key: 'charger', label: '充电桩' },
+];
+
+/** 某个 tab 下的设备，「全部」不筛 */
+export const devicesInCategory = (k: DeviceCategoryKey): DeviceItem[] =>
+  k === 'all' ? DEVICE_LIST : DEVICE_LIST.filter((d) => TYPE_CATEGORY[d.type] === k);
+
+/** 筛选面板用的类型清单：只列台账里真实有的类型，顺序照台账 */
+export const DEVICE_TYPE_OPTIONS = (() => {
+  const seen = new Set<DeviceTypeKey>();
+  const out: { key: DeviceTypeKey; label: string }[] = [];
+  DEVICE_LIST.forEach((d) => {
+    if (!seen.has(d.type)) {
+      seen.add(d.type);
+      out.push({ key: d.type, label: DEVICE_TYPE_LABEL[d.type] });
+    }
+  });
+  return out;
+})();
+
+/**
+ * 列表查询：先按大类（tab）圈定范围，再按类型筛，最后按关键词匹配名称或 SN。
+ * 关键词不区分大小写，SN 里带连字符也照样能搜中间一段。
+ */
+export const queryDevices = (o: {
+  category: DeviceCategoryKey;
+  type: DeviceTypeKey | 'all';
+  keyword: string;
+}): DeviceItem[] => {
+  const kw = o.keyword.trim().toLowerCase();
+  return devicesInCategory(o.category).filter((d) => {
+    if (o.type !== 'all' && d.type !== o.type) return false;
+    if (!kw) return true;
+    return d.name.toLowerCase().includes(kw) || d.sn.toLowerCase().includes(kw);
+  });
+};
 
 /* EMS 点表里的「接入设备数 / 通信中断设备」等台账拼完才有答案，回填，不写死 */
 (() => {

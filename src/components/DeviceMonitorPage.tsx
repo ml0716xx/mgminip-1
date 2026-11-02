@@ -20,22 +20,30 @@ import {
   WifiOff,
   ClipboardCheck,
   AlertTriangle,
-  History,
+  Check,
+  Copy,
+  Search,
+  X,
+  SlidersHorizontal,
   Zap,
   Battery,
   Plug,
   Gauge,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   DEVICE_DATA_NOTE,
   DEVICE_CONN_META,
   DEVICE_FAULT_META,
-  DEVICE_LIST,
   DEVICE_SUMMARY,
+  DEVICE_TABS,
   DEVICE_TYPE_LABEL,
+  DEVICE_TYPE_OPTIONS,
+  devicesInCategory,
   findDevice,
   formatDeviceRefreshTime,
+  queryDevices,
+  type DeviceCategoryKey,
   type DeviceConn,
   type DeviceItem,
   type DeviceTypeKey,
@@ -131,42 +139,15 @@ const DeviceCard: React.FC<{ device: DeviceItem; onOpen: () => void }> = ({ devi
           <span className="text-[9px] text-gray-400 font-bold block truncate mt-0.5">
             {DEVICE_TYPE_LABEL[device.type]} · {device.spec}
           </span>
+          <span className="text-[9px] text-gray-400 font-mono font-bold block truncate mt-0.5">
+            SN {device.sn}
+          </span>
         </div>
         <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
       </div>
     </div>
   );
 };
-
-/** 最新数据 / 历史数据 的页签，样式照现场那张表 */
-const DataTabs: React.FC<{ active: 'latest' | 'history'; onChange: (k: 'latest' | 'history') => void }> = ({
-  active,
-  onChange,
-}) => (
-  <div className="flex items-center gap-5 border-b border-gray-200 px-1">
-    {(
-      [
-        { key: 'history' as const, label: '历史数据' },
-        { key: 'latest' as const, label: '最新数据' },
-      ]
-    ).map((t) => {
-      const on = active === t.key;
-      return (
-        <button
-          key={t.key}
-          id={`device_data_tab_${t.key}`}
-          onClick={() => onChange(t.key)}
-          className={`relative pb-1.5 pt-0.5 text-[11px] font-black transition-colors ${
-            on ? 'text-emerald-600' : 'text-gray-400'
-          }`}
-        >
-          {t.label}
-          {on && <span className="absolute left-0 -bottom-px h-0.5 w-full bg-emerald-500 rounded-full" />}
-        </button>
-      );
-    })}
-  </div>
-);
 
 /** 最新数据点表：两列，标签左、数值右，跟现场点表一个读法 */
 const PointTable: React.FC<{ device: DeviceItem }> = ({ device }) => {
@@ -259,30 +240,74 @@ const GunSection: React.FC<{ gunIds: string[]; onOpen: (id: string) => void }> =
   );
 };
 
-/** 历史数据还没接，先把话说清楚，别摆一个空白页 */
-const HistoryPlaceholder: React.FC = () => (
-  <div className="bg-white rounded-2xl border border-gray-100 px-4 py-10 flex flex-col items-center gap-2">
-    <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center">
-      <History className="w-5 h-5 text-gray-300" />
+/** 搜不到：说清是「搜不到」而不是「没设备」，给一键回退 */
+const NoResult: React.FC<{ onReset: () => void }> = ({ onReset }) => (
+  <div className="bg-white rounded-2xl border border-gray-100 px-4 py-9 flex flex-col items-center gap-1.5">
+    <div className="w-9 h-9 rounded-2xl bg-gray-50 flex items-center justify-center">
+      <Search className="w-4 h-4 text-gray-300" />
     </div>
-    <span className="text-[11px] font-black text-gray-500">历史数据按小时归档</span>
-    <p className="text-[9px] text-gray-400 text-center leading-relaxed">
-      本期先做最新数据，历史曲线等归档任务上线后再开放。
-    </p>
+    <span className="text-[11px] font-black text-gray-500">没有匹配的设备</span>
+    <p className="text-[9px] text-gray-400 text-center">换个关键词，或清除条件看全部。</p>
+    <button
+      id="btn_no_result_reset"
+      onClick={onReset}
+      className="mt-1.5 text-[10px] font-black text-emerald-600 border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-1"
+    >
+      清除条件
+    </button>
   </div>
 );
 
 export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) => {
   /* 详情用页内状态而不是新路由：返回键一级一级退，符合小程序的心智 */
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [dataTab, setDataTab] = useState<'latest' | 'history'>('latest');
+  const [active, setActive] = useState<DeviceCategoryKey>('all');
   /* 每进一次详情重新取一次时间：切设备 / 返回再进都刷新，跟真实拉数一致 */
   const refreshAt = useMemo(() => formatDeviceRefreshTime(), [detailId]);
   const detail = detailId ? findDevice(detailId) : undefined;
+  const [copied, setCopied] = useState(false);
+  /* 列表查询：关键词（名称 / SN）+ 类型筛选，两者可以叠加 */
+  const [keyword, setKeyword] = useState('');
+  const [typeFilter, setTypeFilter] = useState<DeviceTypeKey | 'all'>('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const list = useMemo(
+    () => queryDevices({ category: active, type: typeFilter, keyword }),
+    [active, typeFilter, keyword],
+  );
+  const filtering = keyword.trim() !== '' || typeFilter !== 'all';
 
   const openDevice = (id: string) => {
     setDetailId(id);
-    setDataTab('latest');
+    setCopied(false);
+  };
+
+  const resetFilter = () => {
+    setKeyword('');
+    setTypeFilter('all');
+  };
+
+  /** 复制 SN：先走剪贴板 API，不行再用隐藏 textarea 兜底（小程序 WebView 里常有权限限制） */
+  const copySn = async (sn: string) => {
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = sn;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    };
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(sn);
+      else if (!fallback()) return;
+    } catch {
+      if (!fallback()) return;
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
   };
 
   if (detail) {
@@ -323,17 +348,34 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
               </div>
             </div>
 
-            <DataTabs active={dataTab} onChange={setDataTab} />
+            {/* SN 单独一张卡：现场报修、对账都要抄这串，给个复制键少一次手打 */}
+            <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5 shadow-xs flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="text-[9px] text-gray-400 font-bold block">设备 SN</span>
+                <span
+                  id="device_sn"
+                  className="text-[11px] font-black font-mono text-gray-900 block truncate mt-0.5"
+                >
+                  {detail.sn}
+                </span>
+              </div>
+              <button
+                id="btn_copy_sn"
+                onClick={() => copySn(detail.sn)}
+                className={`shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black border transition-colors ${
+                  copied
+                    ? 'text-emerald-600 border-emerald-200 bg-emerald-50'
+                    : 'text-gray-500 border-gray-200 bg-white active:bg-gray-50'
+                }`}
+              >
+                {copied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                {copied ? '已复制' : '复制'}
+              </button>
+            </div>
 
-            {dataTab === 'history' ? (
-              <HistoryPlaceholder />
-            ) : (
-              <>
-                <PointTable device={detail} />
-                {detail.strings && <StringSection device={detail} />}
-                {detail.gunIds && <GunSection gunIds={detail.gunIds} onOpen={openDevice} />}
-              </>
-            )}
+            <PointTable device={detail} />
+            {detail.strings && <StringSection device={detail} />}
+            {detail.gunIds && <GunSection gunIds={detail.gunIds} onOpen={openDevice} />}
 
             <p className="text-[9px] text-gray-400 text-center pt-1">{DEVICE_DATA_NOTE}</p>
           </div>
@@ -379,17 +421,124 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
             </div>
           </div>
 
-          {/* 全部设备：一个列表装下所有类型，按现场点表顺序排 */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18 }}
-            className="space-y-2"
-          >
-            {DEVICE_LIST.map((d) => (
-              <DeviceCard key={d.id} device={d} onOpen={() => openDevice(d.id)} />
-            ))}
-          </motion.div>
+          {/* 搜索 + 类型筛选：名称和 SN 都能搜，类型是第二个维度 */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0 flex items-center gap-1.5 bg-white border border-gray-100 rounded-xl px-2.5 py-2">
+              <Search className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+              <input
+                id="device_search"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索设备名称 / SN"
+                className="w-full min-w-0 bg-transparent outline-none text-[11px] font-bold text-gray-800 placeholder:text-gray-300 placeholder:font-normal"
+              />
+              {keyword && (
+                <button
+                  id="btn_clear_search"
+                  onClick={() => setKeyword('')}
+                  className="shrink-0 p-0.5 text-gray-300 active:text-gray-500"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              id="btn_type_filter"
+              onClick={() => setFilterOpen((v) => !v)}
+              className={`shrink-0 inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-[10px] font-black transition-colors ${
+                typeFilter !== 'all' || filterOpen
+                  ? 'text-emerald-600 border-emerald-200 bg-emerald-50'
+                  : 'text-gray-500 border-gray-100 bg-white'
+              }`}
+            >
+              <SlidersHorizontal className="w-3 h-3" />
+              {typeFilter === 'all' ? '类型' : DEVICE_TYPE_LABEL[typeFilter]}
+            </button>
+          </div>
+
+          {/* 类型筛选面板：只列台账里真实存在的类型，点一个就收起来 */}
+          {filterOpen && (
+            <div id="device_type_filter" className="bg-white rounded-2xl border border-gray-100 p-2 flex flex-wrap gap-1.5">
+              {[{ key: 'all' as const, label: '全部类型' }, ...DEVICE_TYPE_OPTIONS].map((opt) => {
+                const on = typeFilter === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    id={`device_type_${opt.key}`}
+                    onClick={() => {
+                      setTypeFilter(opt.key);
+                      setFilterOpen(false);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-colors ${
+                      on
+                        ? 'text-emerald-600 border-emerald-200 bg-emerald-50'
+                        : 'text-gray-500 border-gray-100 bg-gray-50/60'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 分类 tab：全部 / 储能 / 逆变器 / 充电桩，四等分带台数 */}
+          <div className="grid grid-cols-4 gap-1 rounded-xl bg-white border border-gray-100 p-1">
+            {DEVICE_TABS.map((tab) => {
+              const on = active === tab.key;
+              const count = devicesInCategory(tab.key).length;
+              return (
+                <button
+                  key={tab.key}
+                  id={`device_tab_${tab.key}`}
+                  onClick={() => setActive(tab.key)}
+                  className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-0.5 ${
+                    on ? 'text-emerald-600 bg-emerald-50/60' : 'text-gray-400'
+                  }`}
+                >
+                  {tab.label}
+                  <span className={`text-[8px] font-mono ${on ? 'text-emerald-500' : 'text-gray-400'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {filtering && (
+            <div className="flex items-center justify-between px-0.5 -mt-1">
+              <span id="device_result_count" className="text-[9px] text-gray-400 font-bold">
+                找到 {list.length} 台
+              </span>
+              <button
+                id="btn_reset_filter"
+                onClick={resetFilter}
+                className="text-[9px] font-black text-emerald-600"
+              >
+                清除条件
+              </button>
+            </div>
+          )}
+
+          {/* 设备列表：切换分类时整段淡入，别让 35 张卡硬跳 */}
+          {list.length === 0 ? (
+            <NoResult onReset={resetFilter} />
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-2"
+              >
+                {list.map((d) => (
+                  <DeviceCard key={d.id} device={d} onOpen={() => openDevice(d.id)} />
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )}
 
           <p className="text-[9px] text-gray-400 text-center pt-1">{DEVICE_DATA_NOTE}</p>
         </div>
