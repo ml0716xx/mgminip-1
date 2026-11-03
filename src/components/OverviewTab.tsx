@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -28,6 +28,7 @@ import {
   Plug,
   CloudSun,
   Landmark,
+  Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -45,6 +46,7 @@ import {
   STATION_PERIOD,
 } from '../data/overviewData';
 import { STATION } from '../data/stationData';
+import { formatDeviceRefreshTime } from '../data/deviceData';
 
 type StationTab = 'micro' | 'grid' | 'pv' | 'ess' | 'ev';
 
@@ -342,6 +344,8 @@ const MonitorPanel: React.FC = () => {
 // ==================== 微网 Tab ====================
 const MicroPanel: React.FC = () => {
   const [flowView, setFlowView] = useState<'flow' | 'monitor'>('flow');
+  /* 能流 / 监控各拉一次数：切换视图即刷新时间戳，读数永远能追溯到哪一刻 */
+  const dataTime = useMemo(() => formatDeviceRefreshTime(), [flowView]);
 
   const contribution = [
     {
@@ -423,7 +427,18 @@ const MicroPanel: React.FC = () => {
             {flowView === 'flow' ? <EnergyFlowPanel /> : <MonitorPanel />}
           </motion.div>
         </AnimatePresence>
-        <p className="text-[9px] text-gray-400 text-center mt-2">
+        {/* 数据鲜度：能流和监控看的是同一台站控网关，时间统一放这里 */}
+        <div className="flex items-center justify-center gap-1 mt-2">
+          <Clock className="w-2.5 h-2.5 text-gray-300 shrink-0" />
+          <span className="text-[9px] text-gray-400 font-bold">最新数据时间</span>
+          <span
+            id="flow_data_time"
+            className="text-[9px] font-mono font-bold tabular-nums text-gray-500"
+          >
+            {dataTime}
+          </span>
+        </div>
+        <p className="text-[9px] text-gray-400 text-center mt-1">
           {flowView === 'flow'
             ? '瞬时功率仅供参考，时段趋势请切换「监控」查看'
             : '时段趋势为 2 小时粒度抽点，点击「能流」可返回实时全景'}

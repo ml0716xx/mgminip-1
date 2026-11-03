@@ -378,6 +378,8 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
   const [active, setActive] = useState<DeviceCategoryKey>('all');
   /* 每进一次详情重新取一次时间：切设备 / 返回再进都刷新，跟真实拉数一致 */
   const refreshAt = useMemo(() => formatDeviceRefreshTime(), [detailId]);
+  /* 列表这层也标一次：不进详情也要知道这批在线状态是哪一刻的 */
+  const listTime = useMemo(() => formatDeviceRefreshTime(), []);
   const detail = detailId ? findDevice(detailId) : undefined;
   const [copied, setCopied] = useState(false);
   /* 有指标页的设备默认落在「指标」，其余只有「最新数据」 */
@@ -683,7 +685,17 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
             </AnimatePresence>
           )}
 
-          <p className="text-[9px] text-gray-400 text-center pt-1">{DEVICE_DATA_NOTE}</p>
+          <p id="device_list_time_row" className="flex items-center justify-center gap-1 pt-1">
+            <Clock className="w-2.5 h-2.5 text-gray-300 shrink-0" />
+            <span className="text-[9px] text-gray-400 font-bold">最新数据时间</span>
+            <span
+              id="device_list_time"
+              className="text-[9px] font-mono font-bold tabular-nums text-gray-500"
+            >
+              {listTime}
+            </span>
+          </p>
+          <p className="text-[9px] text-gray-400 text-center">{DEVICE_DATA_NOTE}</p>
         </div>
       </div>
     </div>
