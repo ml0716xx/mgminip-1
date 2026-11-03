@@ -540,28 +540,28 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
 
       <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
         <div className="px-3 pt-2.5 pb-6 space-y-3">
-          {/* 概览：两个数都由台账派生。告警台数与告警明细不在这里 ——
-              告警统一走「消息 · 告警消息」，设备页只回答「有多少台、通不通」 */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-3.5 shadow-xs">
-            <div className="grid grid-cols-2">
-              {[
-                { label: '设备总数', value: DEVICE_SUMMARY.total, unit: '台', tone: 'text-gray-900' },
-                { label: '在线', value: DEVICE_SUMMARY.online, unit: '台', tone: 'text-emerald-600' },
-              ].map((it, i) => (
-                <div
-                  key={it.label}
-                  className={`text-center ${i > 0 ? 'border-l border-gray-100' : ''}`}
-                >
-                  <span className="text-[9px] text-gray-400 font-bold block">{it.label}</span>
-                  <div className="flex items-baseline justify-center gap-0.5 mt-1">
-                    <span className={`text-[19px] font-black font-mono leading-none ${it.tone}`}>
-                      {it.value}
-                    </span>
-                    <span className="text-[9px] text-gray-400 font-bold">{it.unit}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* 概览压成一行：下面的列表本身就是台账，「多少台、通不通」是扫一眼的事，
+              不值得占一张卡。两个数仍由 DEVICE_SUMMARY 派生，不写死。
+              告警台数与明细不在这里 —— 告警统一走「消息 · 告警消息」 */}
+          <div
+            id="device_summary"
+            className="flex items-center justify-between bg-white rounded-xl border border-gray-100 px-3 py-1.5 shadow-xs"
+          >
+            <span className="text-[9px] text-gray-400 font-bold">
+              设备总数
+              <span className="text-[13px] font-black font-mono text-gray-900 mx-1">
+                {DEVICE_SUMMARY.total}
+              </span>
+              台
+            </span>
+            <span className="inline-flex items-center gap-1 text-[9px] text-gray-400 font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              在线
+              <span className="text-[13px] font-black font-mono text-emerald-600 mx-0.5">
+                {DEVICE_SUMMARY.online}
+              </span>
+              台
+            </span>
           </div>
 
           {/* 搜索 + 类型筛选：名称和 SN 都能搜，类型是第二个维度 */}
