@@ -460,21 +460,17 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
 
         <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
           <div className="px-3 pt-2.5 pb-6 space-y-3">
-            {/* 设备身份 + 数据新鲜度：看读数之前先确认「这是哪台、什么时候的」 */}
-            <div className="space-y-0.5">
-              <span className="text-[9px] text-gray-400 font-bold block">
-                {DEVICE_TYPE_LABEL[detail.type]} · {detail.spec}
+            {/* 只留数据新鲜度：类型和规格不再在详情页顶部复述 ——
+                标题已经写了设备名，点表/指标也能看出这是什么设备 */}
+            <div className="flex items-center gap-1 text-[9px] text-gray-400">
+              <Clock className="w-2.5 h-2.5 shrink-0" />
+              <span className="font-bold shrink-0">设备刷新时间</span>
+              <span
+                id="device_refresh_time"
+                className="font-mono font-bold tabular-nums text-gray-500"
+              >
+                {refreshAt}
               </span>
-              <div className="flex items-center gap-1 text-[9px] text-gray-400">
-                <Clock className="w-2.5 h-2.5 shrink-0" />
-                <span className="font-bold shrink-0">设备刷新时间</span>
-                <span
-                  id="device_refresh_time"
-                  className="font-mono font-bold tabular-nums text-gray-500"
-                >
-                  {refreshAt}
-                </span>
-              </div>
             </div>
 
             {/* SN 单独一张卡：现场报修、对账都要抄这串，给个复制键少一次手打 */}
