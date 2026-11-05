@@ -29,6 +29,7 @@ import {
   Battery,
   Plug,
   Gauge,
+  TrendingUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -46,8 +47,10 @@ import {
   type DeviceCategoryKey,
   type DeviceConn,
   type DeviceItem,
+  type DevicePoint,
   type DeviceTypeKey,
 } from '../data/deviceData';
+import { PointTrendPage } from './PointTrendPage';
 
 interface DeviceMonitorPageProps {
   onBack: () => void;
@@ -147,7 +150,7 @@ const DeviceCard: React.FC<{ device: DeviceItem; onOpen: () => void }> = ({ devi
   );
 };
 
-/** 详情页的两个页签：指标在前、最新数据在后（只有四类设备有指标） */
+/** 详情页的两个页签：指标在前、测点数据在后（只有四类设备有指标） */
 const DetailTabs: React.FC<{ active: 'metric' | 'latest'; onChange: (k: 'metric' | 'latest') => void }> = ({
   active,
   onChange,
@@ -156,7 +159,7 @@ const DetailTabs: React.FC<{ active: 'metric' | 'latest'; onChange: (k: 'metric'
     {(
       [
         { key: 'metric' as const, label: '指标' },
-        { key: 'latest' as const, label: '最新数据' },
+        { key: 'latest' as const, label: '测点数据' },
       ]
     ).map((t) => {
       const on = active === t.key;
@@ -245,8 +248,12 @@ const MetricView: React.FC<{ device: DeviceItem }> = ({ device }) => (
   </div>
 );
 
-/** 最新数据点表：两列，标签左、数值右，跟现场点表一个读法 */
-const PointTable: React.FC<{ device: DeviceItem }> = ({ device }) => {
+/** 测点数据点表：两列，标签左、数值右，跟现场点表一个读法。
+ *  每行可点，点进去看这个测点当日的趋势。 */
+const PointTable: React.FC<{ device: DeviceItem; onSelect: (p: DevicePoint) => void }> = ({
+  device,
+  onSelect,
+}) => {
   /* 整行占满的点（表号）不参与左右列计数，否则后面每一行的分隔线都会错位 */
   let col = 0;
   const cells = device.points.map((p) => {
@@ -258,11 +265,17 @@ const PointTable: React.FC<{ device: DeviceItem }> = ({ device }) => {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+      <div className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-50/60 border-b border-gray-50">
+        <TrendingUp className="w-2.5 h-2.5 text-gray-300 shrink-0" />
+        <span className="text-[9px] text-gray-400 font-bold">点击任一测点查看当日趋势</span>
+      </div>
       <div className="grid grid-cols-2">
         {cells.map(({ p, full, left }, i) => (
           <div
             key={`${p.label}-${i}`}
-            className={`flex items-baseline justify-between gap-1 px-2.5 py-2 border-b border-gray-50 min-w-0 ${
+            id={`point_row_${i}`}
+            onClick={() => onSelect(p)}
+            className={`flex items-baseline justify-between gap-1 px-2.5 py-2 border-b border-gray-50 min-w-0 cursor-pointer active:bg-emerald-50/40 transition-colors ${
               full ? 'col-span-2' : left ? 'border-r border-r-gray-50' : ''
             }`}
           >
@@ -382,8 +395,10 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
   const listTime = useMemo(() => formatDeviceRefreshTime(), []);
   const detail = detailId ? findDevice(detailId) : undefined;
   const [copied, setCopied] = useState(false);
-  /* 有指标页的设备默认落在「指标」，其余只有「最新数据」 */
+  /* 有指标页的设备默认落在「指标」，其余只有「测点数据」 */
   const [detailTab, setDetailTab] = useState<'metric' | 'latest'>('latest');
+  /* 打开哪个测点的趋势：null 表示还在详情页 */
+  const [trendPoint, setTrendPoint] = useState<DevicePoint | null>(null);
   /* 列表查询：关键词（名称 / SN）+ 类型筛选，两者可以叠加 */
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<DeviceTypeKey | 'all'>('all');
@@ -438,6 +453,13 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
+
+  /* 测点趋势是详情之上的第三层：只盖住详情，返回仍回详情 */
+  if (detail && trendPoint) {
+    return (
+      <PointTrendPage device={detail} point={trendPoint} onBack={() => setTrendPoint(null)} />
+    );
+  }
 
   if (detail) {
     return (
@@ -498,18 +520,18 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
               </button>
             </div>
 
-            {/* 只有逆变器 / 储能 / 充电桩 / 充电枪有指标页，其余设备直接看最新数据 */}
+            {/* 只有逆变器 / 储能 / 充电桩 / 充电枪有指标页，其余设备直接看测点数据 */}
             {detail.metrics?.length ? (
               <>
                 <DetailTabs active={detailTab} onChange={setDetailTab} />
                 {detailTab === 'metric' ? (
                   <MetricView device={detail} />
                 ) : (
-                  <PointTable device={detail} />
+                  <PointTable device={detail} onSelect={setTrendPoint} />
                 )}
               </>
             ) : (
-              <PointTable device={detail} />
+              <PointTable device={detail} onSelect={setTrendPoint} />
             )}
 
             {/* 下属设备常驻：切哪个页签都在，柜/桩是个整体的这层关系不能藏起来 */}
