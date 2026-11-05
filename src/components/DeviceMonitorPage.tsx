@@ -457,7 +457,12 @@ export const DeviceMonitorPage: React.FC<DeviceMonitorPageProps> = ({ onBack }) 
   /* 测点趋势是详情之上的第三层：只盖住详情，返回仍回详情 */
   if (detail && trendPoint) {
     return (
-      <PointTrendPage device={detail} point={trendPoint} onBack={() => setTrendPoint(null)} />
+      <PointTrendPage
+        device={detail}
+        point={trendPoint}
+        onBack={() => setTrendPoint(null)}
+        onChangePoint={setTrendPoint}
+      />
     );
   }
 

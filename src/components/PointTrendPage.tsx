@@ -15,8 +15,19 @@
  * 曲线在「此刻」那一点必须等于点表上的数，锚点对不上就没法对账。
  */
 
-import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, CalendarDays, TrendingUp } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  TrendingUp,
+  X,
+} from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Area,
   AreaChart,
@@ -45,6 +56,8 @@ interface PointTrendPageProps {
   device: DeviceItem;
   point: DevicePoint;
   onBack: () => void;
+  /** 换当前设备下的另一个测点，不退出趋势页 */
+  onChangePoint: (p: DevicePoint) => void;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -247,9 +260,33 @@ const StateTimeline: React.FC<{ trend: PointTrend; landscape: boolean }> = ({ tr
   );
 };
 
-export const PointTrendPage: React.FC<PointTrendPageProps> = ({ device, point, onBack }) => {
+export const PointTrendPage: React.FC<PointTrendPageProps> = ({
+  device,
+  point,
+  onBack,
+  onChangePoint,
+}) => {
   const [date, setDate] = useState(() => fmtDate(new Date()));
   const [landscape, setLandscape] = useState(false);
+  /* 测点切换抽屉：同一台设备 18–21 个测点，不用退回去再点一次 */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pickerListRef = useRef<HTMLDivElement>(null);
+
+  /* 换测点后回到顶部：否则停在上一张图的统计卡位置，会以为没切过来 */
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [point.label]);
+
+  /* 打开抽屉先把当前测点滚到中间 —— 18 项里第 16 项藏在屏幕外，看不到自己在哪 */
+  useEffect(() => {
+    const list = pickerListRef.current;
+    if (!pickerOpen || !list) return;
+    const cur = list.querySelector<HTMLElement>('[data-current="1"]');
+    if (cur) {
+      list.scrollTop = cur.offsetTop - list.clientHeight / 2 + cur.clientHeight / 2;
+    }
+  }, [pickerOpen]);
 
   const trend = useMemo(() => buildPointTrend(device, point, date), [device, point, date]);
   const today = isToday(date);
@@ -364,7 +401,7 @@ export const PointTrendPage: React.FC<PointTrendPageProps> = ({ device, point, o
 
   /* ---------------- 竖屏 ---------------- */
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden relative">
       <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-white border-b border-gray-100 shrink-0">
         <button onClick={onBack} id="btn_trend_back" className="p-1 text-gray-600 active:text-emerald-500 shrink-0">
           <ChevronLeft className="w-5 h-5" />
@@ -380,7 +417,7 @@ export const PointTrendPage: React.FC<PointTrendPageProps> = ({ device, point, o
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-[#f6f7f9]">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#f6f7f9]">
         <div className="px-3 pt-2.5 pb-6 space-y-3">
           {/* 测点身份 + 当前值 */}
           <div className="bg-white rounded-2xl border border-gray-100 p-3.5 shadow-xs">
@@ -390,7 +427,15 @@ export const PointTrendPage: React.FC<PointTrendPageProps> = ({ device, point, o
                 {device.name}
               </span>
             </div>
-            <span className="text-[13px] font-black text-gray-900 block mt-0.5">{point.label}</span>
+            <button
+              id="btn_trend_picker"
+              onClick={() => setPickerOpen(true)}
+              className="inline-flex items-center gap-1 mt-0.5 -ml-0.5 pl-0.5 pr-1 py-0.5 rounded-md active:bg-gray-50"
+            >
+              <span className="text-[13px] font-black text-gray-900">{point.label}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-[8px] text-gray-300 font-bold">切换测点</span>
+            </button>
             <div className="flex items-end justify-between gap-2 mt-2">
               <div className="flex items-baseline gap-1 min-w-0">
                 <span id="trend_current" className="text-[26px] font-black font-mono leading-none text-gray-900">
@@ -432,6 +477,89 @@ export const PointTrendPage: React.FC<PointTrendPageProps> = ({ device, point, o
           </p>
         </div>
       </div>
+
+      {/* 切换测点：底部抽屉，点一项就地换图，日期保持不变 */}
+      <AnimatePresence>
+        {pickerOpen && (
+          <motion.div
+            id="trend_point_picker_mask"
+            className="absolute inset-0 z-50 bg-black/30"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            onClick={() => setPickerOpen(false)}
+          >
+            <motion.div
+              id="trend_point_picker"
+              className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[72%] flex flex-col shadow-2xl"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-3.5 pt-3 pb-2 border-b border-gray-100 shrink-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[12px] font-black text-gray-900 block">切换测点</span>
+                    <span className="text-[9px] text-gray-400 font-bold block truncate mt-0.5">
+                      {device.name} · 共 {device.points.length} 项
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setPickerOpen(false)}
+                    className="p-1 -mr-1 text-gray-400 active:text-gray-600 shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div ref={pickerListRef} className="overflow-y-auto py-1">
+                {device.points.map((p, i) => {
+                  const on = p.label === point.label;
+                  return (
+                    <button
+                      key={`${p.label}-${i}`}
+                      id={`trend_pick_${i}`}
+                      data-current={on ? '1' : '0'}
+                      onClick={() => {
+                        onChangePoint(p);
+                        setPickerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between gap-2 px-3.5 py-2 text-left transition-colors ${
+                        on ? 'bg-emerald-50/70' : 'active:bg-gray-50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        {on ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        ) : (
+                          <span className="w-3 shrink-0" />
+                        )}
+                        <span
+                          className={`text-[11px] font-bold truncate ${
+                            on ? 'text-emerald-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {p.label}
+                        </span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-black font-mono shrink-0 ${
+                          on ? 'text-emerald-700' : 'text-gray-400'
+                        }`}
+                      >
+                        {p.value}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
