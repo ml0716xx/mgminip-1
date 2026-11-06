@@ -265,9 +265,11 @@ const PointTable: React.FC<{ device: DeviceItem; onSelect: (p: DevicePoint) => v
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-      <div className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-50/60 border-b border-gray-50">
-        <TrendingUp className="w-2.5 h-2.5 text-gray-300 shrink-0" />
-        <span className="text-[9px] text-gray-400 font-bold">点击任一测点查看当日趋势</span>
+      {/* 提示条做成绿色：光一行灰字，没人看得出来这些格子能点 */}
+      <div className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50/50 border-b border-emerald-100/60">
+        <TrendingUp className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+        <span className="text-[9px] text-emerald-700 font-bold">点击任一测点，查看当日趋势</span>
+        <ChevronRight className="w-2.5 h-2.5 text-emerald-400 ml-auto shrink-0" />
       </div>
       <div className="grid grid-cols-2">
         {cells.map(({ p, full, left }, i) => (
@@ -275,15 +277,19 @@ const PointTable: React.FC<{ device: DeviceItem; onSelect: (p: DevicePoint) => v
             key={`${p.label}-${i}`}
             id={`point_row_${i}`}
             onClick={() => onSelect(p)}
-            className={`flex items-baseline justify-between gap-1 px-2.5 py-2 border-b border-gray-50 min-w-0 cursor-pointer active:bg-emerald-50/40 transition-colors ${
+            className={`group flex items-center justify-between gap-1 pl-2.5 pr-1.5 py-2 border-b border-gray-50 min-w-0 cursor-pointer transition-colors hover:bg-emerald-50/40 active:bg-emerald-50 ${
               full ? 'col-span-2' : left ? 'border-r border-r-gray-50' : ''
             }`}
           >
-            <span className="text-[9px] text-gray-400 font-bold leading-snug min-w-0">
+            <span className="text-[9px] text-gray-400 font-bold leading-snug min-w-0 group-hover:text-gray-600">
               {p.label}
             </span>
-            <span className="text-[10px] font-black font-mono text-gray-900 whitespace-nowrap shrink-0">
-              {p.value}
+            <span className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-black font-mono text-gray-900 whitespace-nowrap group-hover:text-emerald-700 transition-colors">
+                {p.value}
+              </span>
+              {/* 常驻小箭头：手机上没 hover，得靠它说明这行能进 */}
+              <ChevronRight className="w-2.5 h-2.5 text-emerald-400/60 group-hover:text-emerald-600 shrink-0" />
             </span>
           </div>
         ))}
