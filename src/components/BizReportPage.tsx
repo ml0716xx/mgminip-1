@@ -59,6 +59,8 @@ interface BizReportPageProps {
   aiStatus?: AiActivationStatus;
   /** 受控：由父级接管开通状态（App 持有，便于跨页面联动与提示） */
   onSetAiStatus?: (s: AiActivationStatus) => void;
+  /** 点击「开通试用／开通正式／升级正式」时的动作：线上弹扫码办理，不改状态 */
+  onRequestActivation?: (s: AiActivationStatus) => void;
 }
 
 // ==================== 通用件 ====================
@@ -147,10 +149,13 @@ const axisProps = {
 } as const;
 
 // ==================== 三、AI 策略分析 ====================
-const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: AiActivationStatus) => void }> = ({
-  status,
-  onSwitch,
-}) => {
+const AiStrategySection: React.FC<{
+  status: AiActivationStatus;
+  /** 演示用三态切换（原型专用，直接改状态） */
+  onSwitch: (s: AiActivationStatus) => void;
+  /** 真实开通入口：弹扫码卡片 */
+  onRequest: (s: AiActivationStatus) => void;
+}> = ({ status, onSwitch, onRequest }) => {
   const c = AI_STRATEGY_CONTENT;
   const meta = AI_STATUS_META[status];
 
@@ -206,8 +211,8 @@ const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: Ai
                 <AiActivationCta
                   scope="biz"
                   className="mt-3"
-                  onTrial={() => onSwitch('trial')}
-                  onActivate={() => onSwitch('activated')}
+                  onTrial={() => onRequest('trial')}
+                  onActivate={() => onRequest('activated')}
                 />
               </div>
               {/* 能力预览（灰态） */}
@@ -278,7 +283,7 @@ const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: Ai
               </div>
 
               {/* 试运行 → 正式运行 */}
-              <AiUpgradeCta scope="biz" className="mt-2.5" onClick={() => onSwitch('activated')} />
+              <AiUpgradeCta scope="biz" className="mt-2.5" onClick={() => onRequest('activated')} />
             </div>
           )}
 
@@ -356,11 +361,18 @@ const AiStrategySection: React.FC<{ status: AiActivationStatus; onSwitch: (s: Ai
 };
 
 // ==================== 主页面 ====================
-export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus = 'activated', onSetAiStatus }) => {
+export const BizReportPage: React.FC<BizReportPageProps> = ({
+  onBack,
+  aiStatus = 'activated',
+  onSetAiStatus,
+  onRequestActivation,
+}) => {
   // 受控（父级持有）优先，否则退化为页内本地状态
   const [localStatus, setLocalStatus] = useState<AiActivationStatus>(aiStatus);
   const status = onSetAiStatus ? aiStatus : localStatus;
   const setStatus = onSetAiStatus ?? setLocalStatus;
+  /** 开通入口落到扫码办理；没传就退回演示切换，保证单页也能点 */
+  const requestActivation = onRequestActivation ?? setStatus;
   const r = BUSINESS_REPORT;
   const days = r.days;
 
@@ -759,7 +771,7 @@ export const BizReportPage: React.FC<BizReportPageProps> = ({ onBack, aiStatus =
           </div>
 
           {/* ===== 三、AI 策略分析 ===== */}
-          <AiStrategySection status={status} onSwitch={setStatus} />
+          <AiStrategySection status={status} onSwitch={setStatus} onRequest={requestActivation} />
 
           {/* ===== 四、三相不平衡治理 ===== */}
           <PhaseImbalanceCard />

@@ -76,6 +76,8 @@ interface TianyingSimPageProps {
   /** AI 策略开通状态：未开通时正文末尾附开通引导条 */
   aiStatus?: AiActivationStatus;
   onSetAiStatus?: (s: AiActivationStatus) => void;
+  /** 点击开通入口时的动作：线上弹扫码办理，不改状态 */
+  onRequestActivation?: (s: AiActivationStatus) => void;
 }
 
 // ==================== 章节外壳 ====================
@@ -443,7 +445,9 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
   onBack,
   aiStatus = 'activated',
   onSetAiStatus,
+  onRequestActivation,
 }) => {
+  const requestActivation = onRequestActivation ?? onSetAiStatus;
   const [caseIdx, setCaseIdx] = useState(0);
   const caseDay = TY_CASE_DAYS[caseIdx];
 
@@ -688,14 +692,14 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
                 <div className="mt-2.5 flex items-stretch gap-2">
                   <button
                     id="btn_ai_trial_sim"
-                    onClick={() => onSetAiStatus?.('trial')}
+                    onClick={() => requestActivation?.('trial')}
                     className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[11px] font-black shadow-sm shadow-emerald-500/25 active:scale-[0.99] transition-transform whitespace-nowrap"
                   >
                     一键免费开通 30 天试用
                   </button>
                   <button
                     id="btn_ai_activated_sim"
-                    onClick={() => onSetAiStatus?.('activated')}
+                    onClick={() => requestActivation?.('activated')}
                     className="shrink-0 px-3 py-2.5 rounded-xl bg-white border border-emerald-300 text-emerald-700 text-[11px] font-black active:scale-[0.99] transition-transform whitespace-nowrap"
                   >
                     开通正式

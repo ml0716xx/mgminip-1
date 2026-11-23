@@ -25,8 +25,10 @@ interface ChartProps {
   report: MonthReport;
   /** AI 策略开通状态：未开通 / 试运行 / 正式运行 */
   aiStatus?: AiActivationStatus;
-  /** 开通状态变更（未开通态的「开通试用／开通正式」按钮） */
+  /** 开通状态变更（仅原型演示用） */
   onSetAiStatus?: (s: AiActivationStatus) => void;
+  /** 点击开通入口时的动作：线上弹扫码办理，不直接改状态 */
+  onRequestActivation?: (s: AiActivationStatus) => void;
 }
 
 // 拖拽刚结束的时间戳（用于抑制拖拽后的误触发点击）
@@ -710,10 +712,12 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({
   report,
   aiStatus = 'activated',
   onSetAiStatus,
+  onRequestActivation,
 }) => {
   const { selectedDay, handleChartClick } = useDaySelect();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const daily = report.dailyList;
+  const requestActivation = onRequestActivation ?? onSetAiStatus;
 
   // 开通状态三态：未开通（锁定）/ 试运行（估算）/ 正式运行（全量）
   const isLocked = aiStatus === 'not_activated';
@@ -808,8 +812,8 @@ export const CurtailmentStopLossChart: React.FC<ChartProps> = ({
             <AiActivationCta
               scope="rpchart"
               className="mt-3"
-              onTrial={() => onSetAiStatus?.('trial')}
-              onActivate={() => onSetAiStatus?.('activated')}
+              onTrial={() => requestActivation?.('trial')}
+              onActivate={() => requestActivation?.('activated')}
             />
           </div>
         ) : (

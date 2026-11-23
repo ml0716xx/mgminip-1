@@ -31,8 +31,13 @@ interface ReportPageProps {
   pvCurtailmentView?: boolean;
   /** AI 策略开通状态：未开通 / 试运行 / 正式运行（影响限电止损增值特性展示） */
   aiStatus?: AiActivationStatus;
-  /** 开通状态变更（限电止损锁定态的「开通试用／开通正式」） */
+  /** 开通状态变更（仅原型演示用，正常流程不会走这里） */
   onSetAiStatus?: (s: AiActivationStatus) => void;
+  /**
+   * 点击「开通试用／开通正式／升级正式」时触发的动作。
+   * 线上走扫码办理，不直接改状态；未传时退化为 onSetAiStatus，便于单页独立预览。
+   */
+  onRequestActivation?: (s: AiActivationStatus) => void;
 }
 
 export const ReportPage: React.FC<ReportPageProps> = ({
@@ -40,7 +45,9 @@ export const ReportPage: React.FC<ReportPageProps> = ({
   pvCurtailmentView = true,
   aiStatus = 'activated',
   onSetAiStatus,
+  onRequestActivation,
 }) => {
+  const requestActivation = onRequestActivation ?? onSetAiStatus;
   const [selectedMonth, setSelectedMonth] = useState<string>('2026年07月');
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -183,7 +190,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({
                   scope="rptop"
                   size="sm"
                   className="mt-2 w-full"
-                  onClick={() => onSetAiStatus?.('activated')}
+                  onClick={() => requestActivation?.('activated')}
                 />
               </div>
             )}
@@ -356,8 +363,8 @@ export const ReportPage: React.FC<ReportPageProps> = ({
                       orientation="column"
                       showHint={false}
                       className="shrink-0"
-                      onTrial={() => onSetAiStatus?.('trial')}
-                      onActivate={() => onSetAiStatus?.('activated')}
+                      onTrial={() => requestActivation?.('trial')}
+                      onActivate={() => requestActivation?.('activated')}
                     />
                   ) : (
                     <div className="flex flex-col items-end gap-1 shrink-0">
@@ -487,6 +494,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({
                 report={reportData}
                 aiStatus={aiStatus}
                 onSetAiStatus={onSetAiStatus}
+                onRequestActivation={requestActivation}
               />
             )}
             <StorageComparisonChart report={reportData} />

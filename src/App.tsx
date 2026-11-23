@@ -17,6 +17,7 @@ import { TianyingSimPage } from './components/TianyingSimPage';
 import { DeviceMonitorPage } from './components/DeviceMonitorPage';
 import { AiActivationStatus } from './data/overviewData';
 import type { NoticeTarget } from './data/noticeData';
+import { QrActivationModal, type QrScene } from './components/QrActivationModal';
 import { STATION } from './data/stationData';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, X } from 'lucide-react';
@@ -41,11 +42,10 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToastMessage(null), 2500);
   };
 
-  /** 开通状态变更（经营报告／策略运行报告的「开通试用／开通正式」按钮、工作台演示开关） */
+  /** 开通状态变更（仅工作台的三态演示开关用） */
   const handleAiStatusChange = (s: AiActivationStatus) => {
     setAiStatus(s);
-    // 提示里不写试用天数：各处开通入口的试用期口径尚未统一（体检报告写 30 天、
-    // AiActivationCta 的说明写 7 天），先避免点完按钮就自相矛盾
+    // 试用期统一按 30 天口径（体检报告、消息通知、开通说明一致）
     showToast(
       s === 'trial'
         ? '已开通 AI 策略试用'
@@ -53,6 +53,15 @@ export default function App() {
         ? '已开通 AI 策略正式运行'
         : '已切换为「未开通」状态',
     );
+  };
+
+  /* 「开通试用／开通正式／升级正式」不再一键改状态，改为弹零碳云管家二维码，
+     由服务人员按站点办理。入口和按钮样式都不动，只换点了之后发生什么。 */
+  const [qrScene, setQrScene] = useState<QrScene | null>(null);
+  const requestActivation = (s: AiActivationStatus) => {
+    if (s === 'not_activated') return;
+    /* 试运行态点「开通正式」其实是升级，文案要分开 */
+    setQrScene(aiStatus === 'trial' && s === 'activated' ? 'upgrade' : s);
   };
 
   // Handle Menu Clicking
@@ -128,6 +137,7 @@ export default function App() {
               pvCurtailmentView={pvCurtailmentView}
               aiStatus={aiStatus}
               onSetAiStatus={handleAiStatusChange}
+              onRequestActivation={requestActivation}
             />
           );
         case 'biz':
@@ -136,6 +146,7 @@ export default function App() {
               onBack={() => setFullScreen(null)}
               aiStatus={aiStatus}
               onSetAiStatus={handleAiStatusChange}
+              onRequestActivation={requestActivation}
             />
           );
         case 'sim':
@@ -144,6 +155,7 @@ export default function App() {
               onBack={() => setFullScreen(null)}
               aiStatus={aiStatus}
               onSetAiStatus={handleAiStatusChange}
+              onRequestActivation={requestActivation}
             />
           );
         case 'device':
@@ -180,28 +192,38 @@ export default function App() {
 
       {/* Main Orcherstrating Container */}
       <div className="relative z-10 w-full flex items-center justify-center">
-        <AnimatePresence mode="wait">
-          {fullScreen ? (
-            renderFullScreenPage(fullScreen)
-          ) : (
-            <motion.div
-              key="shell"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.25 }}
-            >
-              <WeChatShell
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                stationName={stationName}
-                phoneMode={phoneMode}
+        {/* 手机壳与扫码弹层共用一个定位容器：弹层只盖住壳，不铺满浏览器 */}
+        <div className="relative">
+          <AnimatePresence mode="wait">
+            {fullScreen ? (
+              renderFullScreenPage(fullScreen)
+            ) : (
+              <motion.div
+                key="shell"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.25 }}
               >
-                {renderActiveTab()}
-              </WeChatShell>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <WeChatShell
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  stationName={stationName}
+                  phoneMode={phoneMode}
+                >
+                  {renderActiveTab()}
+                </WeChatShell>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 开通入口统一落点：扫码添加零碳云管家 */}
+          <QrActivationModal
+            scene={qrScene}
+            onClose={() => setQrScene(null)}
+            shellRadius={phoneMode ? 'rounded-[50px]' : 'rounded-3xl'}
+          />
+        </div>
       </div>
 
       {/* Elegant Toast notification element */}

@@ -74,7 +74,7 @@ export const AiActivationCta: React.FC<AiActivationCtaProps> = ({
       </div>
       {md && showHint && (
         <p className="text-[9px] text-gray-400 text-center mt-1.5">
-          试用含 7 天全功能体验，到期可升级正式版
+          试用含 30 天全功能体验，到期可升级正式版
         </p>
       )}
     </div>
