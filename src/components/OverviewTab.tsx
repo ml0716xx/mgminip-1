@@ -346,6 +346,15 @@ const MicroPanel: React.FC = () => {
   const [flowView, setFlowView] = useState<'flow' | 'monitor'>('flow');
   /* 能流 / 监控各拉一次数：切换视图即刷新时间戳，读数永远能追溯到哪一刻 */
   const dataTime = useMemo(() => formatDeviceRefreshTime(), [flowView]);
+  /* 指标卡（收益 / 供电 / 用电 / 社会贡献）的统计截止时间：全页共用一处，不在每张卡上重复。
+     取最近一个已完成的 15min 统计点（向下取整），所以通常比上面的瞬时时间早 0~15 分钟：
+     指标是累计口径，只认已结算的整点数据，不认秒级瞬时值。 */
+  const statTime = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(Math.floor(d.getMinutes() / 15) * 15, 0, 0);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }, []);
 
   const contribution = [
     {
@@ -383,6 +392,20 @@ const MicroPanel: React.FC = () => {
           <CloudSun className="w-4 h-4 text-amber-500" />
           <span className="text-[11px] font-black text-gray-600 font-mono">24°C</span>
         </div>
+      </div>
+
+      {/* 指标数据口径：整页指标卡共用这一个统计截止时间，不在每张卡上重复标注 */}
+      <div className="-mt-1 flex items-center justify-between px-1">
+        <span className="flex items-center gap-1 text-[9px] text-gray-400 font-bold">
+          <Clock className="w-2.5 h-2.5 shrink-0" />
+          指标数据统计截止
+        </span>
+        <span
+          id="overview_stat_time"
+          className="text-[9px] font-mono font-bold tabular-nums text-gray-500"
+        >
+          {statTime}
+        </span>
       </div>
 
       {/* 能量全景 */}
