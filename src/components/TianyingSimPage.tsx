@@ -695,7 +695,7 @@ export const TianyingSimPage: React.FC<TianyingSimPageProps> = ({
                     onClick={() => requestActivation?.('trial')}
                     className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[11px] font-black shadow-sm shadow-emerald-500/25 active:scale-[0.99] transition-transform whitespace-nowrap"
                   >
-                    一键免费开通 30 天试用
+                    扫码免费开通 30 天试用
                   </button>
                   <button
                     id="btn_ai_activated_sim"
