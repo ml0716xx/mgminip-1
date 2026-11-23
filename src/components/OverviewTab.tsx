@@ -344,8 +344,9 @@ const MonitorPanel: React.FC = () => {
 // ==================== 微网 Tab ====================
 const MicroPanel: React.FC = () => {
   const [flowView, setFlowView] = useState<'flow' | 'monitor'>('flow');
-  /* 能流 / 监控各拉一次数：切换视图即刷新时间戳，读数永远能追溯到哪一刻 */
-  const dataTime = useMemo(() => formatDeviceRefreshTime(), [flowView]);
+  /* 能流 / 监控各拉一次数：切换视图即刷新时间戳，读数永远能追溯到哪一刻。
+     去掉年份只留「月-日 时:分:秒」——秒是瞬时口径的特征，年份在当日卡片里是纯噪音。 */
+  const dataTime = useMemo(() => formatDeviceRefreshTime().slice(5), [flowView]);
   /* 指标卡（收益 / 供电 / 用电 / 社会贡献）的统计截止时间：全页共用一处，不在每张卡上重复。
      取最近一个已完成的 15min 统计点（向下取整），所以通常比上面的瞬时时间早 0~15 分钟：
      指标是累计口径，只认已结算的整点数据，不认秒级瞬时值。 */
@@ -450,13 +451,14 @@ const MicroPanel: React.FC = () => {
             {flowView === 'flow' ? <EnergyFlowPanel /> : <MonitorPanel />}
           </motion.div>
         </AnimatePresence>
-        {/* 数据鲜度：能流和监控看的是同一台站控网关，时间统一放这里 */}
-        <div className="flex items-center justify-center gap-1 mt-2">
-          <Clock className="w-2.5 h-2.5 text-gray-300 shrink-0" />
-          <span className="text-[9px] text-gray-400 font-bold">最新数据时间</span>
+        {/* 瞬时口径：页面上方已有「指标数据统计截止」，这里降为脚注，只回答「这组功率是哪一秒的」，
+            字号、颜色、字重都让一档，不与指标时间抢主次 */}
+        <div className="flex items-center justify-center gap-1 mt-1.5">
+          <Clock className="w-2 h-2 text-gray-300 shrink-0" />
+          <span className="text-[8px] text-gray-300 font-medium">最新数据时间</span>
           <span
             id="flow_data_time"
-            className="text-[9px] font-mono font-bold tabular-nums text-gray-500"
+            className="text-[8px] font-mono font-medium tabular-nums text-gray-400"
           >
             {dataTime}
           </span>
